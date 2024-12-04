@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# ddnet-map-loader
-=======
 # DDNet Map Loader
 
 A powerful tool for DDNet server administrators that allows hot-reloading maps while preserving player positions.
@@ -19,20 +16,32 @@ A powerful tool for DDNet server administrators that allows hot-reloading maps w
 - DDNet Server
 - The tutorial.map file in your DDNet maps directory
 
+## 📥 Installation
+
+### Option 1: Download Pre-compiled Release (Recommended)
+1. Go to [Releases](https://github.com/trikiman/ddnet-map-loader/releases/latest)
+2. Download `ddnet-map-loader-v1.0.0.zip`
+3. Extract to your desired location
+4. Run `ddnet_control.exe`
+
+### Option 2: Build from Source
+1. Download and install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/)
+2. Download `ddnet-map-loader-source-v1.0.0.zip` from [Releases](https://github.com/trikiman/ddnet-map-loader/releases/latest)
+3. Extract the files
+4. Run `compile.bat`
+
 ## 🚀 Quick Start
 
-1. Download the latest release
-2. Extract all files
-3. Copy `tutorial.map` to your DDNet maps directory:
+1. Copy `tutorial.map` to your DDNet maps directory:
    ```
    %AppData%\DDNet\maps\tutorial.map
    ```
-4. Copy `myServerconfig.cfg` to your DDNet server's data directory
-5. Start DDNet server with the config:
+2. Copy `myServerconfig.cfg` to your DDNet server's data directory
+3. Start DDNet server with the config:
    ```
    DDNet-Server.exe -f myServerconfig.cfg
    ```
-6. Double-click any .map file to hot-reload it!
+4. Double-click any .map file to hot-reload it!
 
 ## 📖 Documentation
 
@@ -85,4 +94,3 @@ MIT License - feel free to use and modify as you wish!
 
 - DDNet Team for the amazing game
 - Icon from DDNet game assets
->>>>>>> c6584df (Initial commit: DDNet Map Loader with hot reload functionality)
