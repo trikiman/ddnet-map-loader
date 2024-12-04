@@ -26,6 +26,9 @@ Desktop.ini
 maps/*.map
 !maps/tutorial.map
 
+# Release files
+*.zip
+
 # Temporary files
 *.tmp
 *.bak
