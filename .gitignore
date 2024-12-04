@@ -1,0 +1,31 @@
+# Build outputs
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.res
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+
+# Backup files
+*_backup.map
+backup_info.txt
+
+# Windows specific
+Thumbs.db
+Desktop.ini
+
+# DDNet specific
+maps/*.map
+!maps/tutorial.map
+
+# Temporary files
+*.tmp
+*.bak
