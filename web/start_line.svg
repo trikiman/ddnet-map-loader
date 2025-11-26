@@ -1,0 +1,24 @@
+<svg width="720" height="160" viewBox="0 0 720 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .iron{fill:#2c2c2c;stroke:#1b1b1b;stroke-width:3}
+      .ironHL{fill:#3b3b3b}
+      .stripe{fill:#ece8dc}
+      .ground{fill:#6a6a6a}
+      .text{fill:#2c2c2c;font-family:Verdana, Geneva, sans-serif;font-size:22px;font-weight:700;letter-spacing:2px}
+    </style>
+  </defs>
+
+  <rect class="ground" x="0" y="120" width="720" height="40"/>
+
+  <rect class="iron" x="120" y="40" width="10" height="80" rx="3"/>
+  <rect class="ironHL" x="122" y="42" width="3" height="76" rx="2"/>
+  <path class="iron" d="M130 70c18-14 18-26 0-32 M130 70c-18 14-18 26 0 32" fill="none"/>
+
+  <rect class="iron" x="590" y="40" width="10" height="80" rx="3"/>
+  <rect class="ironHL" x="592" y="42" width="3" height="76" rx="2"/>
+  <path class="iron" d="M590 70c-18-14-18-26 0-32 M590 70c18 14 18 26 0 32" fill="none"/>
+
+  <rect class="stripe" x="160" y="110" width="400" height="10" rx="2"/>
+  <text class="text" x="360" y="104" text-anchor="middle">START</text>
+</svg>

@@ -1,0 +1,3 @@
+- Map upload handling: Bot simulates double click when a map is uploaded
+- Reaction system: Adds confirmation emoji when map processing is complete
+- Interactive reactions: Re-processes map when emoji is clicked again

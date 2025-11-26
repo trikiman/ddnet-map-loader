@@ -1,0 +1,133 @@
+u need always read 3 files to not lose focus: 
+C:\Users\rust-\CascadeProjects\ddnet_control\Project plan\01-Idea.md
+C:\Users\rust-\CascadeProjects\ddnet_control\ddnet_control.cpp and C:\Users\rust-\CascadeProjects\ddnet_control\Project plan\double_click_logic.md
+
+
+3. **Discord Bot Features** ✅
+   - Map upload handling: Bot simulates double click when a map is uploaded
+   - Reaction system: Adds confirmation emoji when map processing is complete
+   - Interactive reactions: Re-processes map when emoji is clicked again
+   - Map listing command: !map shows last 20 maps in folder
+     
+  format rules: 
+         
+
+         1034563956234272767_hui (17) 19:24-22-11-2024
+         1034563956234272767_hui (16) 14:12-22-11-2024
+         1034563956234272767_hui (15) 13:54-22-11-2024
+         123                          13:52-22-11-2024
+         1034563956234272767_hui (14) 18:56-21-11-2024
+         1034563956234272767_hui (5)  17:58-21-11-2024
+         1034563956234272767_hui (13) 13:58-21-11-2024
+         1034563956234272767_hui (12) 15:53-20-11-2024
+         1034563956234272767_hui (11) 19:10-19-11-2024
+         1034563956234272767_hui (9)  15:01-19-11-2024
+         1034563956234272767_hui (10) 13:23-19-11-2024
+         1034563956234272767_hui (8)  13:28-18-11-2024
+         1 (1)                        12:57-18-11-2024
+         1034563956234272767_hui (7)  16:10-13-11-2024
+         1034563956234272767_hui (6)  10:52-13-11-2024
+         1034563956234272767_hui (4)  09:13-13-11-2024
+         1                            03:44-13-11-2024
+         Ham5 map                     01:57-13-11-2024
+         1 (2)                        15:18-11-11-2024
+         1034563956234272767_hui (3)  14:57-11-11-2024
+
+5. **Chat history format**:  
+   🤖 Discord bot connected successfully.
+   👋 '[D] Ʈ¥4ƙą_' has left the game
+   💬 triki: и стартани
+   🎮 '[D] Ʈ¥4ƙą_' entered and joined the game
+   ℹ️  '[D] Ʈ¥4ƙą_' joined team 2
+   if link with ling on image bot will prewiew this image on channel.
+
+4. **Session Format**
+
+   📊 Session: ty4
+   ─────────────────────────────
+   ⏱  Duration:    13.0m
+   🕒  Start:       00:37:58
+   💬  Messages:    10
+   🎮  Teams:       0
+   ─────────────────────────────
+   🔧 RCON Commands: 83 total
+      • tele: 76 times
+      • tele 1 0: 2 times
+      • change_map 1: 1 times
+      • change_map Rain: 1 times
+      • help: 1 times
+      • /cmdlist: 1 times
+      • up: 1 times
+   ─────────────────────────────
+   🗺 Regular Commands: 15 total
+      • kill: 5 times
+      • spec: 3 times
+      • team: 3 times
+      • emote: 2 times
+      • whisper: 2 times
+   ─────────────────────────────
+   🗺  Maps: total 3h
+      Rain (1h34m) kefir (1h26m)
+
+   All RCON Commands (352 total): and ALL Regular Commands (98 total): u can find here C:\Users\rust-\CascadeProjects\ddnet_control\Project plan\01-Idea.md
+
+   
+
+6. **Run any .map file on pc** (done)
+   u can find here C:\Users\rust-\CascadeProjects\ddnet_control\Project plan\double_click_logic.md
+
+7. **Web interface**
+   dragand drop .map file on web interface and hot_reload map in game
+   progress bar when map is loading    
+
+   show last20 maps in C:\Users\rust9\AppData\Roaming\DDNet\maps folder in web interface
+
+
+
+8. **Authentication and Parsing Implementation**
+
+   U can find worked version in folder "worked code only read folder"
+
+9. **Response Timing**
+   - Server may not respond immediately
+   - Multiple attempts with delays improve reliability
+   - Total timeout should be reasonable (e.g., 1-2 seconds)
+
+10. **Response Format**
+      - Responses include timestamp and log level
+      - Map name is always after "Value:" prefix
+      - May contain newlines and extra whitespace
+
+11. **Error Handling**
+      - Empty responses should be retried
+      - Clean map name by removing non-printable characters
+      - Verify map name is not empty after cleaning
+
+12. **Verification**
+      - After map change, verify new map is loaded
+      - Use same parsing logic to confirm change
+      - Multiple verification attempts may be needed
+
+## Core Technologies
+- **ECON Protocol**: External console for server control
+- **TCP Sockets**: For reliable server communication
+- **Discord API**: For bot integration
+- **Windows API**: For file system operations
+
+## Compilation
+```batch
+"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat" && cl /EHsc /std:c++20 ddnet_control.cpp
+```
+
+
+## Next Steps
+1. Implement Discord bot with map upload handling
+2. Add !map command for history display
+3. Create web interface for map control
+4. Add file system watcher for .map files
+5. Implement session tracking and statistics
+
+## References
+- DDNet Source: https://github.com/ddnet
+- Game Server: 127.0.0.1:8303
+- Maps Directory: C:/Users/rust-/AppData/Roaming/DDNet/maps

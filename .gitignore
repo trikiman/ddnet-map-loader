@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+
+# Build outputs (C/C++)
+*.obj
+*.res
+*.exe
+*.dll
+*.lib
+*.pdb
+build/
+*.exp
+
+# Local config
+.env
+*.user
+
+# Archives
+*.zip
+*.7z
+*.tar
+*.gz
+
+# App-specific
+bot_log.txt
+build.log
+web/*.log
+
+# IDE
+.vscode/
+.vscode.example/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated icons/cache
+Image/*_fixed.ico
+
+# Web cache
+web/__pycache__/
+
+# Tools outputs
+screencapture-*.png

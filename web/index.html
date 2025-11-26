@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDNet Map Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Theme toggle button -->
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode">🌙</button>
+    
+    <div class="container">
+        <header>
+            <h1>DDNet Map Manager</h1>
+        </header>
+
+        <main>
+            <section class="upload-section">
+                <div class="dropzone" id="dropZone">
+                    <div class="dropzone-content">
+                        <img src="upload-icon.svg" alt="Upload" class="upload-icon">
+                        <p>Drag and drop your .map file here</p>
+                        <p class="small">or click to select file</p>
+                    </div>
+                </div>
+                
+                <div class="progress-container" style="display: none;">
+                    <div class="progress-label">Uploading map...</div>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Auto-update checkbox -->
+                <div style="margin-top:16px;padding:12px;background:#1a2e1a;border:1px solid #4CAF50;border-radius:8px">
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;color:#ddd">
+                        <input type="checkbox" id="autoUpdateCheckbox" style="width:18px;height:18px;cursor:pointer">
+                        <span style="font-weight:500;color:#4CAF50">Enable auto-update on save</span>
+                    </label>
+                    <div id="autoUpdateWarning" style="display:none;margin-top:10px;padding:10px;background:#3d2e0a;border:1px solid #ff9800;border-radius:6px;font-size:13px;color:#ffcc80">
+                        <strong>⚠️ Note:</strong> A PowerShell window will open to watch your file. Keep it running while editing - it will auto-upload every time you save the map in DDNet editor.
+                    </div>
+                </div>
+                <div id="autoUpdateStatus" style="display:none;padding:12px;border-radius:6px;margin-top:12px"></div>
+            </section>
+
+            <section class="maps-section">
+                <h2>Recent Maps</h2>
+                <div class="folder-selector" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <label for="folderSelect" style="font-weight: 500;">Browse folder:</label>
+                    <select id="folderSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #444; background: #1e1e1e; color: #ddd; min-width: 200px; cursor: pointer;">
+                        <option value="">Root (maps/)</option>
+                    </select>
+                    <button id="refreshFolders" class="download-btn" style="padding: 8px 12px;">↻ Refresh</button>
+                </div>
+                <div class="sort-controls" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <label style="font-weight: 500;">Sort by:</label>
+                    <select id="sortBy" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #444; background: #1e1e1e; color: #ddd; cursor: pointer;">
+                        <option value="date">Date Modified</option>
+                        <option value="name">Name</option>
+                        <option value="size">Size</option>
+                    </select>
+                    <select id="sortOrder" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #444; background: #1e1e1e; color: #ddd; cursor: pointer;">
+                        <option value="desc">Descending ↓</option>
+                        <option value="asc">Ascending ↑</option>
+                    </select>
+                </div>
+                <div class="maps-list">
+                    <!-- Maps will be dynamically populated here -->
+                </div>
+            </section>
+            
+            <section class="style-preview" style="margin-top:40px">
+                <h2>Style Preview</h2>
+                <div style="display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap">
+                    <figure style="margin:0">
+                        <img src="start_gate.svg" alt="Start Gate" style="height:180px">
+                        <figcaption style="text-align:center;font-size:12px;color:#666">Кованая арка «START»</figcaption>
+                    </figure>
+                    <figure style="margin:0">
+                        <img src="start_line.svg" alt="Start Line" style="height:140px">
+                        <figcaption style="text-align:center;font-size:12px;color:#666">Стартовая полоса</figcaption>
+                    </figure>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+    <script>
+        // Additional check to ensure maps are loaded
+        setTimeout(() => {
+            const baseUrl = window.location.origin;
+            fetch(`${baseUrl}/list-maps`)
+                .then(response => response.json())
+                .then(maps => {
+                    console.log('Maps loaded via direct fetch:', maps);
+                    if (maps.length > 0 && document.querySelector('.maps-list').children.length === 0) {
+                        console.log('Maps were loaded but not displayed, forcing refresh...');
+                        const mapsList = document.querySelector('.maps-list');
+                        maps.forEach(map => {
+                            const mapItem = document.createElement('div');
+                            mapItem.className = 'map-item';
+                            const date = new Date(map.modified);
+                            mapItem.innerHTML = `
+                                <span class="map-name">${map.name}</span>
+                                <span class="map-date">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</span>
+                            `;
+                            const downloadBtn = document.createElement('button');
+                            downloadBtn.className = 'download-btn';
+                            downloadBtn.textContent = 'Download';
+                            downloadBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                window.location.href = `${baseUrl}/download/${encodeURIComponent(map.name)}`;
+                            };
+                            mapItem.appendChild(downloadBtn);
+                            mapsList.appendChild(mapItem);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error in backup map loader:', error));
+        }, 2000);
+    </script>
+</body>
+</html>

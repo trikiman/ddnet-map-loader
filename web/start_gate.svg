@@ -1,0 +1,32 @@
+<svg width="720" height="280" viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .iron{fill:#2c2c2c;stroke:#1b1b1b;stroke-width:3}
+      .ironHL{fill:#3b3b3b}
+      .stone{fill:#6a6a6a}
+      .stoneHL{fill:#7a7a7a}
+      .chain{stroke:#1b1b1b;stroke-width:3;fill:none;stroke-linecap:round}
+      .text{fill:#f0efe9;font-family:Verdana, Geneva, sans-serif;font-size:36px;font-weight:700;letter-spacing:2px}
+    </style>
+  </defs>
+
+  <rect class="stone" x="110" y="230" width="70" height="30" rx="4"/>
+  <rect class="stoneHL" x="110" y="230" width="70" height="8" rx="4"/>
+  <rect class="stone" x="540" y="230" width="70" height="30" rx="4"/>
+  <rect class="stoneHL" x="540" y="230" width="70" height="8" rx="4"/>
+
+  <rect class="iron" x="140" y="90" width="10" height="140" rx="3"/>
+  <rect class="ironHL" x="142" y="92" width="3" height="136" rx="2"/>
+  <rect class="iron" x="570" y="90" width="10" height="140" rx="3"/>
+  <rect class="ironHL" x="572" y="92" width="3" height="136" rx="2"/>
+  <path class="iron" d="M150 150c20-20 20-40 0-50 M150 150c-20 20-20 40 0 50" fill="none"/>
+  <path class="iron" d="M570 150c-20-20-20-40 0-50 M570 150c20 20 20 40 0 50" fill="none"/>
+
+  <path class="iron" d="M130 90 Q360 40 590 90" fill="none"/>
+
+  <line class="chain" x1="300" y1="105" x2="300" y2="135"/>
+  <line class="chain" x1="420" y1="105" x2="420" y2="135"/>
+  <rect class="iron" x="270" y="135" width="180" height="56" rx="8"/>
+  <rect class="ironHL" x="270" y="135" width="180" height="10" rx="8"/>
+  <text class="text" x="360" y="173" text-anchor="middle">START</text>
+</svg>

@@ -1,0 +1,66 @@
+2024-12-26 05:56:43,681 - INFO - Starting application...
+2024-12-26 05:56:43,682 - INFO - Server thread started
+2024-12-26 05:56:43,682 - ERROR - Icon not found at: C:\Users\rust-\CascadeProjects\ddnet_control\web\map.png
+2024-12-26 05:56:43,682 - ERROR - Failed to create tray icon, exiting...
+2024-12-26 05:56:46,973 - INFO - Starting application...
+2024-12-26 05:56:46,973 - INFO - Server thread started
+2024-12-26 05:56:46,973 - ERROR - Icon not found at: C:\Users\rust-\CascadeProjects\ddnet_control\web\map.png
+2024-12-26 05:56:46,973 - ERROR - Failed to create tray icon, exiting...
+2024-12-26 05:57:02,108 - INFO - Starting application...
+2024-12-26 05:57:02,108 - INFO - Server thread started
+2024-12-26 05:57:02,108 - ERROR - Icon not found at: C:\Users\rust-\CascadeProjects\ddnet_control\web\map.png
+2024-12-26 05:57:02,109 - ERROR - Failed to create tray icon, exiting...
+2024-12-26 05:57:45,590 - INFO - Starting application...
+2024-12-26 05:57:45,590 - INFO - Server thread started
+2024-12-26 05:57:45,598 - INFO - 
+Server running on:
+2024-12-26 05:57:45,598 - INFO -  - Local:   http://localhost:8299
+2024-12-26 05:57:45,598 - INFO -  - Network: http://192.168.88.98:8299
+2024-12-26 05:58:04,457 - INFO - Starting application...
+2024-12-26 05:58:04,457 - INFO - Server thread started
+2024-12-26 05:58:04,464 - INFO - 
+Server running on:
+2024-12-26 05:58:04,465 - INFO -  - Local:   http://localhost:8299
+2024-12-26 05:58:04,465 - INFO -  - Network: http://192.168.88.98:8299
+2024-12-26 05:58:49,605 - INFO - Starting application...
+2024-12-26 05:58:49,605 - INFO - Server thread started
+2024-12-26 05:58:49,605 - INFO - Trying to load icon from: C:\Users\rust-\CascadeProjects\ddnet_control\web\map.ico
+2024-12-26 05:58:49,612 - INFO - 
+Server running on:
+2024-12-26 05:58:49,612 - INFO -  - Local:   http://localhost:8299
+2024-12-26 05:58:49,612 - INFO -  - Network: http://192.168.88.98:8299
+2024-12-26 05:58:49,632 - INFO - Successfully opened image: ICO, mode=RGBA, size=(32, 32)
+2024-12-26 05:58:49,632 - INFO - Successfully created tray icon
+2024-12-26 05:58:49,632 - INFO - Running tray icon...
+2024-12-26 06:02:35,785 - INFO - "GET / HTTP/1.1" 200 -
+2024-12-26 06:02:36,017 - INFO - "GET /styles.css HTTP/1.1" 304 -
+2024-12-26 06:02:36,112 - INFO - "GET /upload-icon.svg HTTP/1.1" 304 -
+2024-12-26 06:02:36,113 - INFO - "GET /script.js HTTP/1.1" 304 -
+2024-12-26 06:02:57,804 - INFO - File saved: C:\Users\rust-\AppData\Roaming\DDNet\maps\maps from site\1034563956234272767_hui (23).map
+2024-12-26 06:02:57,804 - INFO - "POST /upload HTTP/1.1" 200 -
+2024-12-26 06:02:58,279 - INFO - Simulated click on: C:\Users\rust-\AppData\Roaming\DDNet\maps\maps from site\1034563956234272767_hui (23).map
+2024-12-26 06:02:58,279 - INFO - "POST /simulate-click HTTP/1.1" 200 -
+2024-12-26 06:03:36,614 - INFO - File saved: C:\Users\rust-\AppData\Roaming\DDNet\maps\maps from site\Necron (23).map
+2024-12-26 06:03:36,614 - INFO - "POST /upload HTTP/1.1" 200 -
+2024-12-26 06:03:37,072 - INFO - Simulated click on: C:\Users\rust-\AppData\Roaming\DDNet\maps\maps from site\Necron (23).map
+2024-12-26 06:03:37,072 - INFO - "POST /simulate-click HTTP/1.1" 200 -
+2024-12-26 06:05:35,504 - INFO - "GET / HTTP/1.1" 200 -
+2024-12-26 06:05:35,645 - INFO - "GET /styles.css HTTP/1.1" 304 -
+2024-12-26 06:05:35,663 - INFO - "GET /script.js HTTP/1.1" 304 -
+2024-12-26 06:05:35,678 - INFO - "GET /upload-icon.svg HTTP/1.1" 304 -
+2024-12-26 06:05:40,983 - INFO - "GET / HTTP/1.1" 304 -
+2024-12-26 06:09:12,962 - INFO - Server stopped
+2024-12-26 06:09:12,962 - INFO - Application exited
+2024-12-26 06:09:13,299 - INFO - "GET / HTTP/1.1" 304 -
+2024-12-26 06:09:14,645 - INFO - "GET / HTTP/1.1" 304 -
+2024-12-26 06:10:24,457 - INFO - "GET / HTTP/1.1" 304 -
+2024-12-26 06:11:24,099 - INFO - Attempting to exit application...
+2024-12-26 06:11:24,438 - INFO - Server stopped
+2024-12-26 06:11:24,438 - INFO - Stopping tray icon...
+2024-12-26 06:11:24,439 - INFO - Application exited successfully
+2024-12-26 06:14:05,544 - INFO - Server stopped
+2024-12-26 06:14:05,544 - INFO - Application exited
+2024-12-26 06:40:40,747 - INFO - Application exited
+2024-12-26 06:57:21,980 - INFO - Application exited
+2024-12-26 07:07:54,836 - INFO - Application exited
+2024-12-26 07:09:50,515 - INFO - Application exited
