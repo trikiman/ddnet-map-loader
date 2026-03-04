@@ -102,6 +102,31 @@ class MapServerHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(maps).encode())
             return
+        
+        elif self.path == '/get-logs':
+            # Return last 500 lines of ddnet_control.log
+            log_path = os.path.join(MAPS_FOLDER, 'ddnet_control.log')
+            try:
+                if os.path.exists(log_path):
+                    with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                        # Get last 500 lines
+                        last_lines = lines[-500:] if len(lines) > 500 else lines
+                        content = ''.join(last_lines)
+                else:
+                    content = "Log file not found at: " + log_path
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(content.encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(f"Error reading log: {str(e)}".encode())
+            return
             
         elif self.path.startswith('/download/'):
             try:

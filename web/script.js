@@ -414,4 +414,63 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ===== Search functionality =====
+    const searchInput = document.getElementById('searchInput');
+    const clearSearch = document.getElementById('clearSearch');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.toLowerCase().trim();
+            const mapItems = document.querySelectorAll('.map-item');
+            
+            mapItems.forEach(item => {
+                const mapName = item.querySelector('.map-name')?.textContent.toLowerCase() || '';
+                if (query === '' || mapName.includes(query)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    if (clearSearch) {
+        clearSearch.addEventListener('click', () => {
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        });
+    }
+
+    // ===== Log viewer =====
+    const showLogsBtn = document.getElementById('showLogs');
+    const closeLogsBtn = document.getElementById('closeLogs');
+    const logViewer = document.getElementById('logViewer');
+    const logContent = document.getElementById('logContent');
+    
+    if (showLogsBtn) {
+        showLogsBtn.addEventListener('click', async () => {
+            const baseUrl = window.location.origin;
+            logContent.textContent = 'Loading logs...';
+            logViewer.style.display = 'block';
+            
+            try {
+                const response = await fetch(`${baseUrl}/get-logs`);
+                const text = await response.text();
+                logContent.textContent = text;
+                // Scroll to bottom
+                logViewer.scrollTop = logViewer.scrollHeight;
+            } catch (e) {
+                logContent.textContent = 'Error loading logs: ' + e.message;
+            }
+        });
+    }
+    
+    if (closeLogsBtn) {
+        closeLogsBtn.addEventListener('click', () => {
+            logViewer.style.display = 'none';
+        });
+    }
 });

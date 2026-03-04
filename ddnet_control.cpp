@@ -68,13 +68,7 @@ public:
 
         std::string log_message = "[" + timestamp + "] [" + level_str + "] " + message;
         
-        // Log to console
-        if (level == Level::ERROR) {
-            std::cerr << log_message << std::endl;
-        } else {
-            std::cout << log_message << std::endl;
-        }
-
+        // Log to file only (no console output for GUI app)
         // Log to file in %APPDATA%/DDNet/maps
         static std::ofstream log_file;
         if (!log_file.is_open()) {
@@ -281,13 +275,13 @@ bool set_socket_timeout(SOCKET sock, int timeoutMs) {
     // Set send timeout
     DWORD timeout = timeoutMs;
     if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) != 0) {
-        std::cout << "Failed to set send timeout: " << WSAGetLastError() << std::endl;
+        // std::cout << "Failed to set send timeout: " << WSAGetLastError() << std::endl;
         return false;
     }
     
     // Set receive timeout
     if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) != 0) {
-        std::cout << "Failed to set receive timeout: " << WSAGetLastError() << std::endl;
+        // std::cout << "Failed to set receive timeout: " << WSAGetLastError() << std::endl;
         return false;
     }
     
@@ -309,7 +303,7 @@ std::vector<std::string> split_string(const std::string& str, char delim) {
 bool send_command(SOCKET sock, const std::string& command) {
     std::string cmd = command + "\n";
     if (send(sock, cmd.c_str(), cmd.length(), 0) == SOCKET_ERROR) {
-        std::cerr << "Failed to send command: " << WSAGetLastError() << std::endl;
+        // std::cerr << "Failed to send command: " << WSAGetLastError() << std::endl;
         return false;
     }
     return true;
@@ -332,11 +326,11 @@ bool receive_responses(SOCKET sock, std::vector<std::string>& responses, int tim
             if (error == WSAETIMEDOUT) {
                 break;  // Timeout is expected and not an error
             }
-            std::cerr << "Error receiving data: " << error << std::endl;
+            // std::cerr << "Error receiving data: " << error << std::endl;
             return false;
         }
         if (bytes_received == 0) {
-            std::cerr << "Connection closed by server" << std::endl;
+            // std::cerr << "Connection closed by server" << std::endl;
             return false;
         }
 
@@ -381,8 +375,8 @@ bool authenticate(SOCKET sock) {
 }
 
 std::string get_current_map(SOCKET sock) {
-    std::cout << "\n=== Starting Map Query ===" << std::endl;
-    std::cout << "Sending sv_map command..." << std::endl;
+    // std::cout << "\n=== Starting Map Query ===" << std::endl;
+    // std::cout << "Sending sv_map command..." << std::endl;
     
     if (!send_command(sock, "sv_map")) {
         return "";
@@ -402,8 +396,8 @@ std::string get_current_map(SOCKET sock) {
         }
     }
 
-    std::cout << "Response: " << response << std::endl;
-    std::cout << "\n";
+    // std::cout << "Response: " << response << std::endl;
+    // std::cout << "\n";
 
     // Extract map name from response
     size_t valuePos = response.find("Value:");
@@ -449,9 +443,9 @@ public:
                 closesocket(sock);
             }
             
-            std::cerr << "Connection attempt " << attempt << " failed. ";
+            // std::cerr << "Connection attempt " << attempt << " failed. ";
             if (attempt < retries) {
-                std::cerr << "Retrying in " << ServerConfig::RETRY_DELAY_MS << "ms..." << std::endl;
+                // std::cerr << "Retrying in " << ServerConfig::RETRY_DELAY_MS << "ms..." << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(ServerConfig::RETRY_DELAY_MS));
             }
         }
@@ -464,9 +458,9 @@ public:
                 return true;
             }
             
-            std::cerr << "Send attempt " << attempt << " failed. ";
+            // std::cerr << "Send attempt " << attempt << " failed. ";
             if (attempt < retries) {
-                std::cerr << "Retrying..." << std::endl;
+                // std::cerr << "Retrying..." << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(ServerConfig::RETRY_DELAY_MS));
             }
         }
@@ -479,9 +473,9 @@ public:
                 return true;
             }
             
-            std::cerr << "Receive attempt " << attempt << " failed. ";
+            // std::cerr << "Receive attempt " << attempt << " failed. ";
             if (attempt < retries) {
-                std::cerr << "Retrying..." << std::endl;
+                // std::cerr << "Retrying..." << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(ServerConfig::RETRY_DELAY_MS));
             }
         }
@@ -519,18 +513,18 @@ public:
 bool hot_reload_map(SOCKET sock) {
     ServerConnection conn;
     if (!conn.connect_with_retry()) {
-        std::cerr << "Failed to establish server connection" << std::endl;
+        // std::cerr << "Failed to establish server connection" << std::endl;
         return false;
     }
 
     if (!conn.send_command_with_retry("hot_reload")) {
-        std::cerr << "Failed to send hot_reload command" << std::endl;
+        // std::cerr << "Failed to send hot_reload command" << std::endl;
         return false;
     }
 
     std::vector<std::string> responses;
     if (!conn.receive_with_retry(responses)) {
-        std::cerr << "Failed to receive response for hot_reload" << std::endl;
+        // std::cerr << "Failed to receive response for hot_reload" << std::endl;
         return false;
     }
 
@@ -547,20 +541,20 @@ bool verify_hot_reload(SOCKET sock, const std::string& expected_map) {
         std::string current_map = get_current_map(sock);
         
         if (current_map.empty()) {
-            std::cerr << "Attempt " << attempt << ": Failed to get current map" << std::endl;
+            // std::cerr << "Attempt " << attempt << ": Failed to get current map" << std::endl;
         } else {
             // For hot reload, we just need to verify the server is responsive
-            std::cout << "Hot reload verification successful!" << std::endl;
+            // std::cout << "Hot reload verification successful!" << std::endl;
             return true;
         }
 
         if (attempt < MAX_RETRIES) {
-            std::cout << "Retry " << attempt + 1 << "/" << MAX_RETRIES << std::endl;
+            // std::cout << "Retry " << attempt + 1 << "/" << MAX_RETRIES << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY_MS));
         }
     }
 
-    std::cerr << "Failed to verify server response after " << MAX_RETRIES << " attempts" << std::endl;
+    // std::cerr << "Failed to verify server response after " << MAX_RETRIES << " attempts" << std::endl;
     return false;
 }
 
@@ -790,7 +784,7 @@ struct MapFileHeader {
 bool validate_map_file(const std::string& mapPath) {
     std::ifstream file(mapPath, std::ios::binary);
     if (!file) {
-        std::cerr << "Cannot open map file: " << mapPath << std::endl;
+        // std::cerr << "Cannot open map file: " << mapPath << std::endl;
         return false;
     }
 
@@ -798,20 +792,20 @@ bool validate_map_file(const std::string& mapPath) {
     file.read(reinterpret_cast<char*>(&header), sizeof(header));
 
     if (!file) {
-        std::cerr << "Failed to read map header: " << mapPath << std::endl;
+        // std::cerr << "Failed to read map header: " << mapPath << std::endl;
         return false;
     }
 
     // Check magic number
     std::string magic(header.magic, 4);
     if (magic != "DATA" && magic != "ATAD") {
-        std::cerr << "Invalid map file format: " << mapPath << std::endl;
+        // std::cerr << "Invalid map file format: " << mapPath << std::endl;
         return false;
     }
 
     // Basic sanity checks
     if (header.size <= 0 || header.size > 1024*1024*64) {  // Max 64MB
-        std::cerr << "Invalid map size: " << header.size << " bytes" << std::endl;
+        // std::cerr << "Invalid map size: " << header.size << " bytes" << std::endl;
         return false;
     }
 
@@ -838,7 +832,7 @@ public:
         );
 
         if (fileHandle == INVALID_HANDLE_VALUE) {
-            std::cerr << "Failed to lock file: " << filePath << std::endl;
+            // std::cerr << "Failed to lock file: " << filePath << std::endl;
             return false;
         }
         return true;
@@ -860,7 +854,7 @@ bool copy_map_to_server(const std::string& mapPath, SOCKET sock) {
     try {
         // Validate map file first
         if (!validate_map_file(mapPath)) {
-            std::cerr << "Map validation failed" << std::endl;
+            // std::cerr << "Map validation failed" << std::endl;
             return false;
         }
 
@@ -872,7 +866,7 @@ bool copy_map_to_server(const std::string& mapPath, SOCKET sock) {
         // Get current map name from server
         std::string currentMap = get_current_map(sock);
         if (currentMap.empty()) {
-            std::cerr << "Could not determine current map name" << std::endl;
+            // std::cerr << "Could not determine current map name" << std::endl;
             return false;
         }
 
@@ -884,7 +878,7 @@ bool copy_map_to_server(const std::string& mapPath, SOCKET sock) {
         // Create file lock
         FileLock lock(targetPathStr);
         if (!lock.acquire()) {
-            std::cerr << "Map file is currently in use" << std::endl;
+            // std::cerr << "Map file is currently in use" << std::endl;
             return false;
         }
 
@@ -892,17 +886,17 @@ bool copy_map_to_server(const std::string& mapPath, SOCKET sock) {
         std::error_code ec;
         uintmax_t targetSize = fs::file_size(mapPath, ec);
         if (ec) {
-            std::cerr << "Failed to get source file size: " << ec.message() << std::endl;
+            // std::cerr << "Failed to get source file size: " << ec.message() << std::endl;
             return false;
         }
 
-        std::cout << "\n=== Copying Map to Server ===" << std::endl;
-        std::cout << "Source map: " << mapPath << " (" << mapName << ")" << std::endl;
-        std::cout << "Target map: " << targetPathStr << " (" << currentMap << ")" << std::endl;
+        // std::cout << "\n=== Copying Map to Server ===" << std::endl;
+        // std::cout << "Source map: " << mapPath << " (" << mapName << ")" << std::endl;
+        // std::cout << "Target map: " << targetPathStr << " (" << currentMap << ")" << std::endl;
 
         // Check if source map exists
         if (!fs::exists(mapPath)) {
-            std::cerr << "Source map does not exist: " << mapPath << std::endl;
+            // std::cerr << "Source map does not exist: " << mapPath << std::endl;
             return false;
         }
 
@@ -911,7 +905,7 @@ bool copy_map_to_server(const std::string& mapPath, SOCKET sock) {
             try {
                 // If target exists, try to remove it first
                 if (fs::exists(targetPath)) {
-                    std::cout << "Removing existing map..." << std::endl;
+                    // std::cout << "Removing existing map..." << std::endl;
                     fs::remove(targetPath);
                 }
 
@@ -933,22 +927,22 @@ bool copy_map_to_server(const std::string& mapPath, SOCKET sock) {
                         targetPath, std::error_code());
                 }
 
-                std::cout << "Successfully copied map file" << std::endl;
+                // std::cout << "Successfully copied map file" << std::endl;
                 return true;
             }
             catch (const fs::filesystem_error& e) {
-                std::cout << "Copy attempt " << attempt << " failed: " << e.what() << std::endl;
+                // std::cout << "Copy attempt " << attempt << " failed: " << e.what() << std::endl;
                 if (attempt < 3) {
-                    std::cout << "Waiting before retry..." << std::endl;
+                    // std::cout << "Waiting before retry..." << std::endl;
                     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Reduced from 1000ms to 100ms
                 }
             }
         }
-        std::cerr << "Failed to copy map after 3 attempts" << std::endl;
+        // std::cerr << "Failed to copy map after 3 attempts" << std::endl;
         return false;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error copying map: " << e.what() << std::endl;
+        // std::cerr << "Error copying map: " << e.what() << std::endl;
         return false;
     }
 }
@@ -958,13 +952,13 @@ bool replace_map(MapInfo& mapInfo, SOCKET sock) {
         // Get current map name from server
         std::string serverMap = get_current_map(sock);
         if (serverMap.empty()) {
-            std::cerr << "Could not determine current map name" << std::endl;
+            // std::cerr << "Could not determine current map name" << std::endl;
             return false;
         }
 
         std::string mapsDir = get_maps_directory();
         if (mapsDir.empty()) {
-            std::cerr << "Could not find DDNet maps directory" << std::endl;
+            // std::cerr << "Could not find DDNet maps directory" << std::endl;
             return false;
         }
 
@@ -972,57 +966,57 @@ bool replace_map(MapInfo& mapInfo, SOCKET sock) {
         fs::path backupPath = fs::path(mapsDir) / (serverMap + "_backup.map");
         fs::path currentMapPath = fs::path(mapsDir) / (serverMap + ".map");
 
-        std::cout << "\n=== Map Replacement Process ===" << std::endl;
-        std::cout << "Current server map: " << serverMap << std::endl;
+        // std::cout << "\n=== Map Replacement Process ===" << std::endl;
+        // std::cout << "Current server map: " << serverMap << std::endl;
 
         // Handle backup based on existence
         if (fs::exists(backupPath)) {
-            std::cout << "Found existing backup at: " << backupPath.string() << std::endl;
+            // std::cout << "Found existing backup at: " << backupPath.string() << std::endl;
             mapInfo.backupPath = backupPath.string();
             mapInfo.originalMap = serverMap;
         } else {
             // Create original backup since it doesn't exist
             try {
                 fs::copy_file(currentMapPath, backupPath, fs::copy_options::none);
-                std::cout << "Created backup at: " << backupPath.string() << std::endl;
+                // std::cout << "Created backup at: " << backupPath.string() << std::endl;
                 mapInfo.backupPath = backupPath.string();
                 mapInfo.originalMap = serverMap;
                 save_backup_info(mapInfo);
             }
             catch (const fs::filesystem_error& e) {
-                std::cerr << "Failed to create original backup: " << e.what() << std::endl;
+                // std::cerr << "Failed to create original backup: " << e.what() << std::endl;
                 return false;
             }
         }
 
         // Copy new map to server's map location
         try {
-            std::cout << "\nCopying from: " << mapInfo.ddnetPath << std::endl;
-            std::cout << "Copying to: " << currentMapPath.string() << std::endl;
+            // std::cout << "\nCopying from: " << mapInfo.ddnetPath << std::endl;
+            // std::cout << "Copying to: " << currentMapPath.string() << std::endl;
             fs::copy_file(mapInfo.ddnetPath, currentMapPath, fs::copy_options::overwrite_existing);
-            std::cout << "Successfully copied map to: " << currentMapPath.string() << std::endl;
+            // std::cout << "Successfully copied map to: " << currentMapPath.string() << std::endl;
         }
         catch (const fs::filesystem_error& e) {
-            std::cerr << "Failed to copy map: " << e.what() << std::endl;
+            // std::cerr << "Failed to copy map: " << e.what() << std::endl;
             return false;
         }
 
         // Send hot reload command
         if (!send_command(sock, "hot_reload")) {
-            std::cerr << "Failed to send reload command" << std::endl;
+            // std::cerr << "Failed to send reload command" << std::endl;
             return false;
         }
 
         // Verify the hot reload
         if (!verify_hot_reload(sock, get_map_name(mapInfo.ddnetPath))) {
-            std::cerr << "Failed to verify hot reload" << std::endl;
+            // std::cerr << "Failed to verify hot reload" << std::endl;
             return false;
         }
 
         return true;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error in replace_map: " << e.what() << std::endl;
+        // std::cerr << "Error in replace_map: " << e.what() << std::endl;
         return false;
     }
 }
@@ -1031,13 +1025,13 @@ bool restore_backup(SOCKET sock) {
     try {
         std::string serverMap = get_current_map(sock);
         if (serverMap.empty()) {
-            std::cerr << "Could not determine current map name" << std::endl;
+            // std::cerr << "Could not determine current map name" << std::endl;
             return false;
         }
 
         std::string mapsDir = get_maps_directory();
         if (mapsDir.empty()) {
-            std::cerr << "Could not find DDNet maps directory" << std::endl;
+            // std::cerr << "Could not find DDNet maps directory" << std::endl;
             return false;
         }
 
@@ -1045,43 +1039,43 @@ bool restore_backup(SOCKET sock) {
         fs::path currentMapPath = fs::path(mapsDir) / (serverMap + ".map");
         fs::path backupPath = fs::path(mapsDir) / (serverMap + "_backup.map");
 
-        std::cout << "\n=== Map Restore Process ===" << std::endl;
-        std::cout << "Current server map: " << serverMap << std::endl;
-        std::cout << "Original backup: " << backupPath.string() << std::endl;
+        // std::cout << "\n=== Map Restore Process ===" << std::endl;
+        // std::cout << "Current server map: " << serverMap << std::endl;
+        // std::cout << "Original backup: " << backupPath.string() << std::endl;
 
         // Check if original backup exists
         if (!fs::exists(backupPath)) {
-            std::cerr << "Original backup not found: " << backupPath.string() << std::endl;
+            // std::cerr << "Original backup not found: " << backupPath.string() << std::endl;
             return false;
         }
 
         // Copy backup back to current map
         try {
             fs::copy_file(backupPath, currentMapPath, fs::copy_options::overwrite_existing);
-            std::cout << "Successfully restored from original backup" << std::endl;
+            // std::cout << "Successfully restored from original backup" << std::endl;
         }
         catch (const fs::filesystem_error& e) {
-            std::cerr << "Failed to restore from backup: " << e.what() << std::endl;
+            // std::cerr << "Failed to restore from backup: " << e.what() << std::endl;
             return false;
         }
 
         // Send reload command
         if (!send_command(sock, "hot_reload")) {
-            std::cerr << "Failed to send reload command" << std::endl;
+            // std::cerr << "Failed to send reload command" << std::endl;
             return false;
         }
 
         // Verify the hot reload using the original map name
         if (!verify_hot_reload(sock, serverMap)) {
-            std::cerr << "Failed to verify hot reload after restore" << std::endl;
+            // std::cerr << "Failed to verify hot reload after restore" << std::endl;
             return false;
         }
 
-        std::cout << "Map restore completed successfully" << std::endl;
+        // std::cout << "Map restore completed successfully" << std::endl;
         return true;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error in restore_backup: " << e.what() << std::endl;
+        // std::cerr << "Error in restore_backup: " << e.what() << std::endl;
         return false;
     }
 }
@@ -1118,11 +1112,11 @@ bool is_server_running() {
 }
 
 SOCKET create_and_connect_socket() {
-    std::cout << "Connecting to DDNet server..." << std::endl;
+    // std::cout << "Connecting to DDNet server..." << std::endl;
 
     SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET) {
-        std::cerr << "Failed to create socket: " << WSAGetLastError() << std::endl;
+        // std::cerr << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return INVALID_SOCKET;
     }
 
@@ -1141,26 +1135,27 @@ SOCKET create_and_connect_socket() {
     // Connect to server
     if (connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         int error = WSAGetLastError();
-        std::cerr << "Failed to connect to server: ";
+        // std::cerr << "Failed to connect to server: ";
         switch (error) {
             case WSAECONNREFUSED:
-                std::cerr << "Connection refused (Is the server running?)";
+                // std::cerr << "Connection refused (Is the server running?)";
                 break;
             case WSAETIMEDOUT:
-                std::cerr << "Connection timed out";
+                // std::cerr << "Connection timed out";
                 break;
             case WSAEHOSTUNREACH:
-                std::cerr << "Host unreachable";
+                // std::cerr << "Host unreachable";
                 break;
             default:
-                std::cerr << "Error " << error;
+                // std::cerr << "Error " << error;
+                break;
         }
-        std::cerr << std::endl;
+        // std::cerr << std::endl;
         closesocket(sock);
         return INVALID_SOCKET;
     }
 
-    std::cout << "Successfully connected to server" << std::endl;
+    // std::cout << "Successfully connected to server" << std::endl;
     return sock;
 }
 
@@ -1187,7 +1182,7 @@ bool verify_file_association() {
     HKEY hKey;
     LONG result = RegOpenKeyExA(HKEY_CLASSES_ROOT, ".map", 0, KEY_READ, &hKey);
     if (result != ERROR_SUCCESS) {
-        std::cerr << "Map file association not found. Please run with --setup first." << std::endl;
+        // std::cerr << "Map file association not found. Please run with --setup first." << std::endl;
         return false;
     }
     RegCloseKey(hKey);
@@ -1198,7 +1193,7 @@ bool verify_permissions(const std::string& path) {
     try {
         fs::path dirPath = fs::path(path);
         if (!fs::exists(dirPath)) {
-            std::cerr << "Path does not exist: " << path << std::endl;
+            // std::cerr << "Path does not exist: " << path << std::endl;
             return false;
         }
 
@@ -1206,7 +1201,7 @@ bool verify_permissions(const std::string& path) {
         std::error_code ec;
         fs::directory_iterator it(dirPath, ec);
         if (ec) {
-            std::cerr << "Cannot access directory: " << path << " - " << ec.message() << std::endl;
+            // std::cerr << "Cannot access directory: " << path << " - " << ec.message() << std::endl;
             return false;
         }
 
@@ -1215,7 +1210,7 @@ bool verify_permissions(const std::string& path) {
         {
             std::ofstream test(testFile);
             if (!test) {
-                std::cerr << "Cannot write to directory: " << path << std::endl;
+                // std::cerr << "Cannot write to directory: " << path << std::endl;
                 return false;
             }
         }
@@ -1224,7 +1219,7 @@ bool verify_permissions(const std::string& path) {
         return true;
     }
     catch (const std::exception& e) {
-        std::cerr << "Permission check failed: " << e.what() << std::endl;
+        // std::cerr << "Permission check failed: " << e.what() << std::endl;
         return false;
     }
 }
@@ -1270,33 +1265,33 @@ std::string get_original_map_name(const std::string& backup_path) {
 
 bool restore_from_backup(SOCKET sock, const std::string& backup_path) {
     if (!fs::exists(backup_path)) {
-        std::cout << "Error: Backup file does not exist: " << backup_path << std::endl;
+        // std::cout << "Error: Backup file does not exist: " << backup_path << std::endl;
         return false;
     }
 
     std::string current_map = get_current_map(sock);
     if (current_map.empty()) {
-        std::cout << "Error: Could not determine current map" << std::endl;
+        // std::cout << "Error: Could not determine current map" << std::endl;
         return false;
     }
 
     // Get the original map name from backup
     std::string original_map = get_original_map_name(backup_path);
-    std::cout << "Restoring from backup: " << backup_path << " to " << original_map << std::endl;
+    // std::cout << "Restoring from backup: " << backup_path << " to " << original_map << std::endl;
 
     // Copy backup to original location
     try {
         fs::copy_file(backup_path, original_map, fs::copy_options::overwrite_existing);
-        std::cout << "Successfully restored from backup" << std::endl;
+        // std::cout << "Successfully restored from backup" << std::endl;
     } catch (const std::exception& e) {
-        std::cout << "Error restoring from backup: " << e.what() << std::endl;
+        // std::cout << "Error restoring from backup: " << e.what() << std::endl;
         return false;
     }
 
     // Send hot_reload command to preserve player positions
     std::string reload_cmd = "hot_reload";
     if (!send_command(sock, reload_cmd)) {
-        std::cout << "Error sending hot_reload command" << std::endl;
+        // std::cout << "Error sending hot_reload command" << std::endl;
         return false;
     }
 
@@ -1306,11 +1301,11 @@ bool restore_from_backup(SOCKET sock, const std::string& backup_path) {
     // Verify the server is responsive
     std::string verify_cmd = "status";
     if (!send_command(sock, verify_cmd)) {
-        std::cout << "Warning: Server not responsive after hot reload" << std::endl;
+        // std::cout << "Warning: Server not responsive after hot reload" << std::endl;
         return false;
     }
 
-    std::cout << "Map restore completed successfully" << std::endl;
+    // std::cout << "Map restore completed successfully" << std::endl;
     return true;
 }
 
@@ -1606,17 +1601,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 }
 
 void print_usage(const char* program_name) {
-    std::cout << "Usage: " << program_name << " <path_to_map_file> [--restore] [--setup]" << std::endl;
-    std::cout << "Options:" << std::endl;
-    std::cout << "  --restore    Restore the last backup instead of replacing the map" << std::endl;
-    std::cout << "  --setup      Set up .map file associations (requires admin privileges)" << std::endl;
+    // std::cout << "Usage: " << program_name << " <path_to_map_file> [--restore] [--setup]" << std::endl;
+    // std::cout << "Options:" << std::endl;
+    // std::cout << "  --restore    Restore the last backup instead of replacing the map" << std::endl;
+    // std::cout << "  --setup      Set up .map file associations (requires admin privileges)" << std::endl;
 }
 
 std::vector<std::string> get_responses(SOCKET sock, int maxResponses, int timeoutMs) {
     std::vector<std::string> responses;
     char buffer[4096];
     
-    std::cout << "Waiting for responses (timeout: " << timeoutMs << "ms)..." << std::endl;
+    // std::cout << "Waiting for responses (timeout: " << timeoutMs << "ms)..." << std::endl;
     
     // Set socket timeout
     DWORD timeout = timeoutMs;
@@ -1634,7 +1629,7 @@ std::vector<std::string> get_responses(SOCKET sock, int maxResponses, int timeou
         std::string line;
         while (std::getline(iss, line)) {
             if (!line.empty()) {
-                std::cout << "Received: " << line << std::endl;
+                // std::cout << "Received: " << line << std::endl;
             }
         }
     }
