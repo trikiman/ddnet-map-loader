@@ -51,20 +51,20 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SYNC-01 | Phase 1 | Complete |
-| SYNC-02 | Phase 1 | Complete |
-| SYNC-03 | Phase 1 | Complete |
-| SYNC-04 | Phase 1 | Complete |
-| TEST-01 | Phase 1 | Complete |
-| TEST-02 | Phase 1 | Complete |
-| TEST-03 | Phase 1 | Complete |
-| SAFE-01 | Phase 1 | Complete |
-| SAFE-02 | Phase 1 | Complete |
-| SAFE-03 | Phase 1 | Complete |
-| SAFE-04 | Phase 1 | Complete |
-| TRIG-01 | Phase 2 | Complete |
-| TRIG-02 | Phase 2 | Complete |
-| TRIG-03 | Phase 3 | Complete |
+| SYNC-01 | Phase 4 | Pending |
+| SYNC-02 | Phase 4 | Pending |
+| SYNC-03 | Phase 4 | Pending |
+| SYNC-04 | Phase 4 | Pending |
+| TEST-01 | Phase 5 | Pending |
+| TEST-02 | Phase 5 | Pending |
+| TEST-03 | Phase 5 | Pending |
+| SAFE-01 | Phase 4 | Pending |
+| SAFE-02 | Phase 4 | Pending |
+| SAFE-03 | Phase 4 | Pending |
+| SAFE-04 | Phase 4 | Pending |
+| TRIG-01 | Phase 5 | Pending |
+| TRIG-02 | Phase 5 | Pending |
+| TRIG-03 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 14 total
@@ -73,4 +73,4 @@
 
 ---
 *Requirements defined: 2026-04-24*
-*Last updated: 2026-04-24 after implementation and verification*
+*Last updated: 2026-04-24 after planning milestone gap-closure phases*
