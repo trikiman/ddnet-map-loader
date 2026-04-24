@@ -46,6 +46,22 @@
                 <div id="autoUpdateStatus" style="display:none;padding:12px;border-radius:6px;margin-top:12px"></div>
             </section>
 
+            <section class="sync-section">
+                <h2>Map Sync</h2>
+                <p class="small">Sync official DDNet type maps into <code>%APPDATA%\DDNet\types</code> and testing maps into <code>types\testingmaps</code>.</p>
+                <div class="sync-actions">
+                    <button id="syncAllBtn" class="sync-btn">Sync All</button>
+                    <button id="syncOfficialBtn" class="sync-btn sync-btn-secondary">Official Types</button>
+                    <button id="syncTestingBtn" class="sync-btn sync-btn-secondary">Testing Maps</button>
+                </div>
+                <div id="syncStatus" class="sync-status" style="display:none">
+                    <div class="sync-status-title">Idle</div>
+                    <div id="syncStatusMessage" class="sync-status-message"></div>
+                    <div id="syncStatusCounts" class="sync-status-counts"></div>
+                    <pre id="syncStatusLog" class="sync-status-log"></pre>
+                </div>
+            </section>
+
             <section class="maps-section">
                 <h2>Recent Maps</h2>
                 

@@ -147,6 +147,9 @@ SOCKET create_and_connect_socket();
 void print_usage(const char* program_name);
 bool verify_file_association();
 bool verify_permissions(const std::string& path);
+bool is_sync_types_command(int argc, char* argv[]);
+std::string get_sync_types_mode(int argc, char* argv[]);
+int run_sync_types_command(int argc, char* argv[]);
 
 bool send_command(SOCKET sock, const std::string& command);
 bool receive_responses(SOCKET sock, std::vector<std::string>& responses, int timeoutMs);
@@ -1177,6 +1180,102 @@ bool is_setup_command(int argc, char* argv[]) {
     return false;
 }
 
+bool is_sync_types_command(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (
+            strcmp(argv[i], "--sync-types") == 0 ||
+            strcmp(argv[i], "--sync-types-official") == 0 ||
+            strcmp(argv[i], "--sync-types-testing") == 0
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string get_sync_types_mode(int argc, char* argv[]) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--sync-types-official") == 0) {
+            return "official";
+        }
+        if (strcmp(argv[i], "--sync-types-testing") == 0) {
+            return "testing";
+        }
+    }
+    return "all";
+}
+
+static int run_hidden_process(const std::wstring& file, const std::wstring& parameters, const std::wstring& working_dir) {
+    SHELLEXECUTEINFOW exec_info = { sizeof(exec_info) };
+    exec_info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+    exec_info.lpVerb = L"open";
+    exec_info.lpFile = file.c_str();
+    exec_info.lpParameters = parameters.empty() ? nullptr : parameters.c_str();
+    exec_info.lpDirectory = working_dir.empty() ? nullptr : working_dir.c_str();
+    exec_info.nShow = SW_HIDE;
+
+    if (!ShellExecuteExW(&exec_info)) {
+        Logger::log(Logger::ERROR, "Failed to launch process");
+        return -1;
+    }
+
+    if (exec_info.hProcess == nullptr) {
+        return 0;
+    }
+
+    WaitForSingleObject(exec_info.hProcess, INFINITE);
+    DWORD exit_code = 1;
+    GetExitCodeProcess(exec_info.hProcess, &exit_code);
+    CloseHandle(exec_info.hProcess);
+    return static_cast<int>(exit_code);
+}
+
+int run_sync_types_command(int argc, char* argv[]) {
+    wchar_t exe_path[MAX_PATH] = {0};
+    DWORD len = GetModuleFileNameW(NULL, exe_path, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) {
+        Logger::log(Logger::ERROR, "GetModuleFileNameW failed for sync-types command");
+        return 1;
+    }
+
+    fs::path exe_dir = fs::path(exe_path).parent_path();
+    fs::path script_path = exe_dir / "tools" / "map_sync.py";
+    fs::path venv_python = exe_dir / "venv" / "Scripts" / "python.exe";
+    std::wstring working_dir = exe_dir.wstring();
+
+    if (!fs::exists(script_path)) {
+        Logger::log(Logger::ERROR, "Sync script not found: " + script_path.string());
+        return 1;
+    }
+
+    const std::string mode = get_sync_types_mode(argc, argv);
+    const std::wstring quoted_script = L"\"" + script_path.wstring() + L"\"";
+    const std::wstring quoted_mode = std::wstring(mode.begin(), mode.end());
+    const std::wstring script_args = quoted_script + L" --mode " + quoted_mode;
+
+    Logger::log(Logger::INFO, "Starting type/testing map sync (" + mode + ")");
+
+    if (fs::exists(venv_python)) {
+        int exit_code = run_hidden_process(venv_python.wstring(), script_args, working_dir);
+        if (exit_code == 0) {
+            Logger::log(Logger::INFO, "Sync process exited with code 0");
+            return 0;
+        }
+        Logger::log(Logger::WARNING, "venv python sync launch failed with code " + std::to_string(exit_code) + ", falling back to system python");
+    }
+
+    int exit_code = run_hidden_process(L"cmd.exe", L"/c py -3 " + script_args, working_dir);
+    if (exit_code == 0) {
+        Logger::log(Logger::INFO, "Sync process exited with code 0");
+        return 0;
+    }
+    Logger::log(Logger::WARNING, "py -3 sync launch failed with code " + std::to_string(exit_code) + ", falling back to python");
+
+    exit_code = run_hidden_process(L"cmd.exe", L"/c python " + script_args, working_dir);
+    Logger::log(exit_code == 0 ? Logger::INFO : Logger::ERROR, "Sync process exited with code " + std::to_string(exit_code));
+    return exit_code == -1 ? 1 : exit_code;
+}
+
 // New functions for file association and permission checks
 bool verify_file_association() {
     HKEY hKey;
@@ -1503,6 +1602,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     argv.push_back(nullptr);
     
     Logger::log(Logger::INFO, "Starting DDNet Map Control (silent mode)");
+
+    if (is_sync_types_command(argc, argv.data())) {
+        return run_sync_types_command(argc, argv.data());
+    }
 
     // Ensure Winsock is initialized before any socket use
     WsaSession wsa;

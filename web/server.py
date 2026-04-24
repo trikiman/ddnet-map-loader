@@ -1,4 +1,5 @@
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+import copy
 import json
 import os
 import subprocess
@@ -13,6 +14,14 @@ from PIL import Image
 import webbrowser
 import re
 import uuid
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from tools.map_sync import sync_ddnet_maps
 
 # Configuration
 MAPS_FOLDER = os.path.expanduser('~\\AppData\\Roaming\\DDNet\\maps')
@@ -21,6 +30,107 @@ MAP_MAX_SIZE_BYTES = 50 * 1024 * 1024
 
 # Simple in-memory token store (clears on server restart)
 TOKENS: set[str] = set()
+SYNC_STATUS_LOCK = threading.Lock()
+SYNC_STATUS: dict[str, object] = {
+    "running": False,
+    "mode": None,
+    "stage": "idle",
+    "message": "Idle",
+    "startedAt": None,
+    "finishedAt": None,
+    "success": None,
+    "error": None,
+    "progress": None,
+    "counts": None,
+    "summary": None,
+    "logs": [],
+}
+
+
+def append_sync_log(message: str) -> None:
+    with SYNC_STATUS_LOCK:
+        logs = list(SYNC_STATUS.get("logs", []))
+        logs.append({
+            "timestamp": int(time.time() * 1000),
+            "message": message,
+        })
+        SYNC_STATUS["logs"] = logs[-40:]
+
+
+def get_sync_status_snapshot() -> dict[str, object]:
+    with SYNC_STATUS_LOCK:
+        return copy.deepcopy(SYNC_STATUS)
+
+
+def set_sync_status(**updates: object) -> None:
+    with SYNC_STATUS_LOCK:
+        SYNC_STATUS.update(updates)
+
+
+def run_sync_job(mode: str) -> None:
+    def on_progress(payload: dict[str, object]) -> None:
+        stage = str(payload.get("stage", "sync"))
+        message = str(payload.get("message", "Working"))
+        append_sync_log(f"[{stage}] {message}")
+        set_sync_status(
+            stage=stage,
+            message=message,
+            progress=payload.get("progress"),
+            counts=payload.get("counts"),
+        )
+
+    try:
+        summary = sync_ddnet_maps(mode=mode, callback=on_progress)
+        append_sync_log("Sync completed successfully")
+        set_sync_status(
+            running=False,
+            success=True,
+            error=None,
+            finishedAt=int(time.time() * 1000),
+            summary=summary,
+            stage="done",
+            message="Sync completed",
+            progress=None,
+            counts=None,
+        )
+    except Exception as exc:
+        append_sync_log(f"Sync failed: {exc}")
+        set_sync_status(
+            running=False,
+            success=False,
+            error=str(exc),
+            finishedAt=int(time.time() * 1000),
+            stage="error",
+            message="Sync failed",
+            progress=None,
+            counts=None,
+        )
+
+
+def start_sync_job(mode: str) -> dict[str, object]:
+    with SYNC_STATUS_LOCK:
+        if SYNC_STATUS.get("running"):
+            return copy.deepcopy(SYNC_STATUS)
+
+        SYNC_STATUS.update({
+            "running": True,
+            "mode": mode,
+            "stage": "queued",
+            "message": f"Starting {mode} sync",
+            "startedAt": int(time.time() * 1000),
+            "finishedAt": None,
+            "success": None,
+            "error": None,
+            "progress": None,
+            "counts": None,
+            "summary": None,
+            "logs": [],
+        })
+
+    append_sync_log(f"Queued {mode} sync")
+    worker = threading.Thread(target=run_sync_job, args=(mode,), daemon=True)
+    worker.start()
+    return get_sync_status_snapshot()
 
 
 def sanitize_map_basename(name: str) -> str:
@@ -290,6 +400,13 @@ class MapServerHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+
+        elif self.path == '/sync-status':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(get_sync_status_snapshot()).encode())
             return
 
         return SimpleHTTPRequestHandler.do_GET(self)
@@ -681,6 +798,34 @@ class MapServerHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
+        elif self.path == '/sync-types':
+            content_length = int(self.headers.get('Content-Length', '0'))
+            data = {}
+            if content_length > 0:
+                post_data = self.rfile.read(content_length)
+                data = json.loads(post_data.decode('utf-8'))
+
+            mode = str(data.get('mode', 'all')).strip().lower() or 'all'
+            if mode not in {'all', 'official', 'testing'}:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Invalid sync mode: {mode}"}).encode())
+                return
+
+            current_status = get_sync_status_snapshot()
+            if current_status.get("running"):
+                self.send_response(409)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(current_status).encode())
+                return
+
+            started = start_sync_job(mode)
+            self.send_response(202)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(started).encode())
         else:
             self.send_response(404)
             self.send_header('Content-type', 'application/json')

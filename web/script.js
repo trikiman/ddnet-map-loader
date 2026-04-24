@@ -29,6 +29,115 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressBar = document.querySelector('.progress');
     const progressLabel = document.querySelector('.progress-label');
     const mapsList = document.querySelector('.maps-list');
+    const syncStatus = document.getElementById('syncStatus');
+    const syncStatusMessage = document.getElementById('syncStatusMessage');
+    const syncStatusCounts = document.getElementById('syncStatusCounts');
+    const syncStatusLog = document.getElementById('syncStatusLog');
+    const syncAllBtn = document.getElementById('syncAllBtn');
+    const syncOfficialBtn = document.getElementById('syncOfficialBtn');
+    const syncTestingBtn = document.getElementById('syncTestingBtn');
+
+    function setSyncButtonsDisabled(disabled) {
+        [syncAllBtn, syncOfficialBtn, syncTestingBtn].forEach(button => {
+            if (button) button.disabled = disabled;
+        });
+    }
+
+    function formatSyncCounts(summary) {
+        if (!summary) return '';
+        const parts = [];
+        if (summary.official) {
+            parts.push(
+                `Official: ${summary.official.created} new, ${summary.official.updated} updated, ${summary.official.skipped} skipped`
+            );
+        }
+        if (summary.testing) {
+            parts.push(
+                `Testing: ${summary.testing.replaced} downloaded, ${summary.testing.deleted_existing} old removed`
+            );
+        }
+        return parts.join(' | ');
+    }
+
+    function renderSyncStatus(status) {
+        if (!syncStatus) return;
+
+        const hasData = status.running || status.success !== null || status.error;
+        syncStatus.style.display = hasData ? 'block' : 'none';
+        if (!hasData) return;
+
+        const title = syncStatus.querySelector('.sync-status-title');
+        if (title) {
+            if (status.running) {
+                title.textContent = `Running ${status.mode || 'sync'}`;
+            } else if (status.success) {
+                title.textContent = 'Last sync completed';
+            } else {
+                title.textContent = 'Last sync failed';
+            }
+        }
+
+        if (syncStatusMessage) {
+            const progress = status.progress;
+            let message = status.message || 'Idle';
+            if (progress && progress.total) {
+                message += ` (${progress.current}/${progress.total})`;
+            }
+            if (status.error) {
+                message = `${message}: ${status.error}`;
+            }
+            syncStatusMessage.textContent = message;
+        }
+
+        if (syncStatusCounts) {
+            syncStatusCounts.textContent = formatSyncCounts(status.summary);
+        }
+
+        if (syncStatusLog) {
+            const logLines = (status.logs || []).map(item => {
+                const stamp = new Date(item.timestamp).toLocaleTimeString();
+                return `[${stamp}] ${item.message}`;
+            });
+            syncStatusLog.textContent = logLines.join('\n');
+        }
+
+        setSyncButtonsDisabled(Boolean(status.running));
+    }
+
+    async function fetchSyncStatus() {
+        try {
+            const response = await fetch(`${window.location.origin}/sync-status`);
+            const status = await response.json();
+            renderSyncStatus(status);
+        } catch (error) {
+            console.error('Sync status error:', error);
+        }
+    }
+
+    async function startSync(mode) {
+        setSyncButtonsDisabled(true);
+        try {
+            const response = await fetch(`${window.location.origin}/sync-types`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ mode })
+            });
+
+            const payload = await response.json();
+            renderSyncStatus(payload);
+
+            if (!response.ok && response.status !== 202 && response.status !== 409) {
+                const errorMessage = payload.error || payload.message || 'Sync failed to start';
+                alert(errorMessage);
+            }
+        } catch (error) {
+            alert(`Sync error: ${error.message}`);
+            console.error('Start sync error:', error);
+            setSyncButtonsDisabled(false);
+        }
+    }
 
     // Format file size helper
     function formatSize(bytes) {
@@ -473,4 +582,17 @@ document.addEventListener('DOMContentLoaded', () => {
             logViewer.style.display = 'none';
         });
     }
+
+    if (syncAllBtn) {
+        syncAllBtn.addEventListener('click', () => startSync('all'));
+    }
+    if (syncOfficialBtn) {
+        syncOfficialBtn.addEventListener('click', () => startSync('official'));
+    }
+    if (syncTestingBtn) {
+        syncTestingBtn.addEventListener('click', () => startSync('testing'));
+    }
+
+    fetchSyncStatus();
+    setInterval(fetchSyncStatus, 3000);
 });
