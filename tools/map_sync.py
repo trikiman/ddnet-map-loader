@@ -7,8 +7,10 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -77,9 +79,13 @@ def stream_download(url: str, destination: Path) -> int:
         size = temp_path.stat().st_size
         os.replace(temp_path, destination)
         return size
-    except Exception:
+    except BaseException:
+        # Broader than Exception so KeyboardInterrupt / SystemExit also clean up.
         if temp_path.exists():
-            temp_path.unlink()
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
         raise
 
 
@@ -228,6 +234,7 @@ def sync_official_types(
         "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "upstream_tree_sha": tree_payload.get("sha"),
         "files": next_manifest if not dry_run else previous_files | next_manifest,
+        "files_count": len(next_manifest if not dry_run else previous_files | next_manifest),
         "orphans": orphaned,
     }
     return summary
@@ -256,6 +263,47 @@ def resolve_testing_filename(name: str, url: str, taken: set[str]) -> str:
     return candidate
 
 
+def check_url_reachable(url: str, timeout: float = 5.0) -> tuple[bool, str]:
+    """Return (reachable, reason). Tries HEAD, falls back to ranged GET on 405."""
+    try:
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "*/*"},
+            method="HEAD",
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            status = getattr(response, "status", 200)
+            if 200 <= status < 400:
+                return True, f"HEAD {status}"
+            return False, f"HEAD {status}"
+    except urllib.error.HTTPError as exc:
+        if exc.code == 405:
+            # Fallback: ranged GET for servers that reject HEAD
+            try:
+                request = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": USER_AGENT,
+                        "Accept": "*/*",
+                        "Range": "bytes=0-0",
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    status = getattr(response, "status", 200)
+                    if 200 <= status < 400:
+                        return True, f"GET (ranged) {status}"
+                    return False, f"GET (ranged) {status}"
+            except urllib.error.HTTPError as inner:
+                return False, f"GET (ranged) HTTPError {inner.code}"
+            except Exception as inner:
+                return False, f"GET (ranged) {type(inner).__name__}: {inner}"
+        return False, f"HEAD HTTPError {exc.code}"
+    except urllib.error.URLError as exc:
+        return False, f"URLError: {exc.reason}"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
 def sync_testing_maps(
     types_root: Path,
     state: dict[str, Any],
@@ -275,6 +323,36 @@ def sync_testing_maps(
         url = urls[0]
         filename = resolve_testing_filename(name, url, taken)
         entries.append({"name": name, "filename": filename, "url": url})
+
+    # TEST-03: pre-validate every URL BEFORE any destructive local action.
+    # On any failure, abort with a RuntimeError — testing_root is untouched.
+    emit_progress(
+        callback,
+        stage="testing",
+        message=f"Pre-validating {len(entries)} testing URL(s)",
+    )
+    unreachable: list[tuple[str, str]] = []
+    for entry in entries:
+        ok, reason = check_url_reachable(entry["url"])
+        if not ok:
+            unreachable.append((entry["filename"], reason))
+    if unreachable:
+        emit_progress(
+            callback,
+            stage="testing",
+            message=f"Aborting: {len(unreachable)} testing URL(s) unreachable",
+            counts={"unreachable": len(unreachable)},
+        )
+        preview = ", ".join(f"{n} ({r})" for n, r in unreachable[:3])
+        suffix = "" if len(unreachable) <= 3 else f" (+{len(unreachable) - 3} more)"
+        raise RuntimeError(
+            f"Testing sync aborted — {len(unreachable)} URL(s) unreachable: {preview}{suffix}"
+        )
+    emit_progress(
+        callback,
+        stage="testing",
+        message=f"Pre-validated {len(entries)} URL(s)",
+    )
 
     summary = {
         "remote_file_count": len(entries),
@@ -425,14 +503,16 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Print the final summary as JSON",
+        help="Print the final summary as JSON to stdout (progress goes to stderr)",
     )
     args = parser.parse_args()
 
     def cli_progress(payload: dict[str, Any]) -> None:
         stage = payload.get("stage", "sync")
         message = payload.get("message", "")
-        print(f"[{stage}] {message}")
+        # When --json is active, keep stdout pristine for the JSON summary.
+        stream = sys.stderr if args.json else sys.stdout
+        print(f"[{stage}] {message}", file=stream)
 
     summary = sync_ddnet_maps(
         mode=args.mode,
