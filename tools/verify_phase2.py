@@ -161,12 +161,18 @@ def main() -> int:
     cfg_path = ddnet_root / "storage.cfg"
     cfg_contents = cfg_path.read_text(encoding="utf-8") if cfg_path.exists() else ""
     write_text(EVIDENCE_DIR / "storage-cfg-contents.txt", cfg_contents)
+    missing_target_lines = [
+        line for line in server_register.STORAGE_CFG_TARGET_LINES
+        if line not in cfg_contents
+    ]
     cfg_report = {
         "action": summary["storage_cfg"]["action"],
         "path": summary["storage_cfg"]["path"],
         "backup_path": summary["storage_cfg"]["backup_path"],
         "exists_after": cfg_path.exists(),
-        "contains_target_line": "add_path $USERDIR/types" in cfg_contents,
+        "target_lines_count": len(server_register.STORAGE_CFG_TARGET_LINES),
+        "missing_target_lines": missing_target_lines,
+        "contains_all_target_lines": not missing_target_lines,
         "sha256_after": sha256_file(cfg_path),
     }
     write_json(EVIDENCE_DIR / "storage-cfg-report.json", cfg_report)
@@ -246,11 +252,14 @@ def main() -> int:
         line = f"FAIL: record_maps row count decreased: {pre_counts['record_maps']} -> {post_counts['record_maps']}"
     lines.append(line); verdicts.append(line)
 
-    # storage.cfg must exist after and contain the target line
-    if cfg_path.exists() and "add_path $USERDIR/types" in cfg_contents:
-        line = "PASS: storage.cfg exists and contains add_path $USERDIR/types"
+    # storage.cfg must exist after and contain ALL target category add_paths
+    if cfg_path.exists() and not missing_target_lines:
+        line = f"PASS: storage.cfg exists and contains all {len(server_register.STORAGE_CFG_TARGET_LINES)} target add_path entries"
     else:
-        line = f"FAIL: storage.cfg state unexpected (exists={cfg_path.exists()}, contents_ok={'add_path $USERDIR/types' in cfg_contents})"
+        line = (
+            f"FAIL: storage.cfg state unexpected "
+            f"(exists={cfg_path.exists()}, missing_lines={missing_target_lines})"
+        )
     lines.append(line); verdicts.append(line)
 
     body = "\n".join(lines) + "\n"

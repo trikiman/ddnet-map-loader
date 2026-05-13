@@ -67,10 +67,12 @@ def _build_fake_ddnet_root(tmp: Path) -> Path:
     conn = sqlite3.connect(str(db))
     try:
         conn.executescript(DDNET_SERVER_SCHEMA)
-        # Pre-seed one user-populated row to test preservation
+        # Pre-seed one user-populated row to test preservation.
+        # Server='DDNet' is the canonical value — every record_maps row uses
+        # it (see legacy %APPDATA%\DDNet\add_maps.ps1 upstream ships).
         conn.execute(
             "INSERT INTO record_maps (Map, Server, Mapper, Points, Stars) VALUES (?,?,?,?,?)",
-            ("Kobra 4", "novice", "Ravie", 5, 3),
+            ("Kobra 4", "DDNet", "Ravie", 5, 3),
         )
         # Pre-seed rows in other tables we must leave alone
         conn.execute(
@@ -122,7 +124,9 @@ class StorageCfgInstallTest(unittest.TestCase):
             result = sr.ensure_storage_cfg(ddnet_root)
             self.assertEqual(result["action"], "appended")
             new_content = cfg.read_text(encoding="utf-8")
-            self.assertTrue(new_content.endswith("add_path $USERDIR/types\n"))
+            # All target category lines must be present after append
+            for target in sr.STORAGE_CFG_TARGET_LINES:
+                self.assertIn(target, new_content)
             self.assertIn("# some comment", new_content)  # existing content preserved
             # Backup matches original
             backup = ddnet_root / "storage.cfg.bak"
@@ -133,11 +137,15 @@ class StorageCfgInstallTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             cfg = ddnet_root / "storage.cfg"
-            # Include the target line with different whitespace and a comment
+            # Include all target lines with different whitespace and comments;
+            # ensure_storage_cfg should recognize each and make no changes.
+            target_block = "\n".join(
+                f"  {line}   # category" for line in sr.STORAGE_CFG_TARGET_LINES
+            )
             original = (
                 "# ddnet storage config\n"
                 "add_path $USERDIR\n"
-                "  add_path   $USERDIR/types   # recursive types\n"
+                + target_block + "\n"
                 "add_path $DATADIR\n"
             )
             cfg.write_text(original, encoding="utf-8")
@@ -171,12 +179,12 @@ class RecordMapsRegistrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "novice").mkdir(parents=True)
-            (types_root / "brutal").mkdir(parents=True)
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            (types_root / "brutal" / "maps").mkdir(parents=True)
             # Kobra 4 is pre-seeded — existing row has Mapper='Ravie', Points=5
-            (types_root / "novice" / "Kobra 4.map").write_bytes(b"a")
-            (types_root / "novice" / "New Map One.map").write_bytes(b"b")
-            (types_root / "brutal" / "New Map Two.map").write_bytes(b"c")
+            (types_root / "novice" / "maps" / "Kobra 4.map").write_bytes(b"a")
+            (types_root / "novice" / "maps" / "New Map One.map").write_bytes(b"b")
+            (types_root / "brutal" / "maps" / "New Map Two.map").write_bytes(b"c")
 
             summary = sr.register_maps_in_db(ddnet_root)
             self.assertEqual(summary["action"], "ok")
@@ -192,17 +200,17 @@ class RecordMapsRegistrationTest(unittest.TestCase):
                 ).fetchone()
             finally:
                 conn.close()
-            self.assertEqual(row, ("Kobra 4", "novice", "Ravie", 5, 3))
+            self.assertEqual(row, ("Kobra 4", "DDNet", "Ravie", 5, 3))
 
     def test_never_deletes_or_updates_existing_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "novice").mkdir(parents=True)
+            (types_root / "novice" / "maps").mkdir(parents=True)
             # Seed a .map file with the SAME name as the pre-seeded row, but
             # we expect the DB row (Ravie / 5 / 3) to stay intact even though
             # our code would default to Mapper='Unknown'/Points=0 for new rows.
-            (types_root / "novice" / "Kobra 4.map").write_bytes(b"x")
+            (types_root / "novice" / "maps" / "Kobra 4.map").write_bytes(b"x")
 
             summary = sr.register_maps_in_db(ddnet_root)
             self.assertEqual(summary["rows_inserted"], 0)
@@ -217,38 +225,75 @@ class RecordMapsRegistrationTest(unittest.TestCase):
                 race_count = conn.execute("SELECT COUNT(*) FROM record_race").fetchone()[0]
             finally:
                 conn.close()
-            self.assertEqual(row, ("Kobra 4", "novice", "Ravie", 5, 3))
+            self.assertEqual(row, ("Kobra 4", "DDNet", "Ravie", 5, 3))
             self.assertEqual(race_count, 1)  # the Kobra 4 race row intact
 
-    def test_testingmaps_category_gets_testing_alias(self) -> None:
+    def test_all_inserted_rows_get_ddnet_server_value(self) -> None:
+        """Every new row — regardless of source category — must be
+        Server='DDNet'. DDNet's server uses the Server column when scoring
+        and resolving votes; any other value breaks sv_map lookups."""
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "testingmaps").mkdir(parents=True)
-            (types_root / "testingmaps" / "Beta Map.map").write_bytes(b"b")
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            (types_root / "brutal" / "maps").mkdir(parents=True)
+            (types_root / "testingmaps" / "maps").mkdir(parents=True)
+            (types_root / "novice" / "maps" / "Novice Map.map").write_bytes(b"a")
+            (types_root / "brutal" / "maps" / "Brutal Map.map").write_bytes(b"b")
+            (types_root / "testingmaps" / "maps" / "Beta Map.map").write_bytes(b"c")
+
+            summary = sr.register_maps_in_db(ddnet_root)
+            self.assertEqual(summary["rows_inserted"], 3)
+
+            conn = sqlite3.connect(str(ddnet_root / sr.SERVER_DB_FILENAME))
+            try:
+                rows = conn.execute(
+                    "SELECT Map, Server FROM record_maps "
+                    "WHERE Map IN ('Novice Map', 'Brutal Map', 'Beta Map') "
+                    "ORDER BY Map"
+                ).fetchall()
+            finally:
+                conn.close()
+            self.assertEqual(
+                rows,
+                [("Beta Map", "DDNet"), ("Brutal Map", "DDNet"), ("Novice Map", "DDNet")],
+            )
+
+    def test_skips_map_files_not_under_category_maps_subfolder(self) -> None:
+        """Files directly under types/<category>/ (no maps/ subfolder) can't
+        be resolved by DDNet's Storage layer, so they must be skipped — no
+        row inserted for maps the server will never be able to load."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ddnet_root = _build_fake_ddnet_root(Path(tmp))
+            types_root = ddnet_root / "types"
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            # .map file under maps/ — should be registered
+            (types_root / "novice" / "maps" / "Valid.map").write_bytes(b"v")
+            # .map file directly under category root — should be SKIPPED
+            (types_root / "novice" / "Orphan.map").write_bytes(b"o")
 
             summary = sr.register_maps_in_db(ddnet_root)
             self.assertEqual(summary["rows_inserted"], 1)
 
             conn = sqlite3.connect(str(ddnet_root / sr.SERVER_DB_FILENAME))
             try:
-                row = conn.execute(
-                    "SELECT Map, Server FROM record_maps WHERE Map='Beta Map'"
-                ).fetchone()
+                rows = conn.execute(
+                    "SELECT Map FROM record_maps WHERE Map IN ('Valid', 'Orphan')"
+                ).fetchall()
             finally:
                 conn.close()
-            self.assertEqual(row, ("Beta Map", "testing"))
+            self.assertEqual(rows, [("Valid",)])
 
     def test_dedupes_duplicate_stems_across_categories(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "novice").mkdir(parents=True)
-            (types_root / "brutal").mkdir(parents=True)
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            (types_root / "brutal" / "maps").mkdir(parents=True)
             # Same stem in two categories — upstream guarantees this never happens
             # in practice, but guard against it deterministically.
-            (types_root / "novice" / "Shared.map").write_bytes(b"n")
-            (types_root / "brutal" / "Shared.map").write_bytes(b"b")
+            (types_root / "novice" / "maps" / "Shared.map").write_bytes(b"n")
+            (types_root / "brutal" / "maps" / "Shared.map").write_bytes(b"b")
 
             summary = sr.register_maps_in_db(ddnet_root)
             self.assertEqual(summary["rows_inserted"], 1)
@@ -258,8 +303,8 @@ class RecordMapsRegistrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "novice").mkdir(parents=True)
-            (types_root / "novice" / "New.map").write_bytes(b"n")
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            (types_root / "novice" / "maps" / "New.map").write_bytes(b"n")
 
             summary = sr.register_maps_in_db(ddnet_root)
             self.assertIsNotNone(summary["backup_path"])
@@ -272,8 +317,8 @@ class NoOtherTablesTouchedTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "novice").mkdir(parents=True)
-            (types_root / "novice" / "X.map").write_bytes(b"x")
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            (types_root / "novice" / "maps" / "X.map").write_bytes(b"x")
 
             cache = ddnet_root / "ddnet-cache.sqlite3"
             import hashlib
@@ -288,8 +333,8 @@ class NoOtherTablesTouchedTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             types_root = ddnet_root / "types"
-            (types_root / "novice").mkdir(parents=True)
-            (types_root / "novice" / "X.map").write_bytes(b"x")
+            (types_root / "novice" / "maps").mkdir(parents=True)
+            (types_root / "novice" / "maps" / "X.map").write_bytes(b"x")
 
             tutorial = ddnet_root / "maps" / "Tutorial.map"
             tutorial_before_mtime = tutorial.stat().st_mtime_ns

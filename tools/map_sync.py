@@ -320,13 +320,64 @@ def check_url_reachable(url: str, timeout: float = 5.0) -> tuple[bool, str]:
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def _migrate_testingmaps_layout(testingmaps_root: Path, callback: ProgressCallback | None) -> int:
+    """One-time migration: move old-style types/testingmaps/*.map files into
+    types/testingmaps/maps/*.map so DDNet's `add_path $USERDIR/types/testingmaps`
+    can resolve them via Storage's mandatory "maps/" prefix.
+
+    Safe to call repeatedly — it only moves files that are directly under
+    testingmaps/ (not under testingmaps/maps/). Existing files under
+    testingmaps/maps/ with the same name are left in place and the old copy
+    is deleted.
+    """
+    if not testingmaps_root.exists():
+        return 0
+    dst_maps = testingmaps_root / "maps"
+    old_style = [p for p in testingmaps_root.glob("*.map") if p.is_file()]
+    if not old_style:
+        return 0
+    dst_maps.mkdir(parents=True, exist_ok=True)
+    moved = 0
+    for src in old_style:
+        dst = dst_maps / src.name
+        if dst.exists():
+            # Newer file already under maps/; delete the stale root copy.
+            try:
+                src.unlink()
+            except OSError:
+                pass
+            continue
+        try:
+            os.replace(src, dst)
+            moved += 1
+        except OSError:
+            # Cross-device or permission error — copy+delete fallback.
+            shutil.copy2(src, dst)
+            try:
+                src.unlink()
+            except OSError:
+                pass
+            moved += 1
+    if moved:
+        emit_progress(
+            callback, stage="testing",
+            message=f"Migrated {moved} testing map(s) from types/testingmaps/ to types/testingmaps/maps/",
+        )
+    return moved
+
+
 def sync_testing_maps(
     types_root: Path,
     state: dict[str, Any],
     dry_run: bool = False,
     callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
-    testing_root = types_root / "testingmaps"
+    # DDNet's Storage always resolves maps via "<add_path>/maps/<stem>.map",
+    # so the testing .map files must live under testingmaps/maps/ (mirroring
+    # how types/novice/maps/*.map is laid out upstream).
+    testingmaps_root = types_root / "testingmaps"
+    testing_root = testingmaps_root / "maps"
+
     emit_progress(callback, stage="testing", message="Fetching testing map list")
     testing_payload = request_json(TESTING_JSON_URL)
 
@@ -388,10 +439,16 @@ def sync_testing_maps(
         }
         return summary
 
-    temp_root = types_root / ".ddnetcontrol-testingmaps.tmp"
+    temp_root = testingmaps_root / ".ddnetcontrol-testingmaps.tmp"
     if temp_root.exists():
         shutil.rmtree(temp_root)
     temp_root.mkdir(parents=True, exist_ok=True)
+
+    # Migration: now that precheck has passed and we're about to stage new
+    # files, move any legacy files from types/testingmaps/*.map into
+    # types/testingmaps/maps/*.map so the replace step below operates on the
+    # right folder. Idempotent — no-op after the first successful run.
+    _migrate_testingmaps_layout(testingmaps_root, callback)
 
     try:
         for index, entry in enumerate(entries, start=1):

@@ -36,12 +36,38 @@ ProgressCallback = Callable[[dict[str, Any]], None]
 
 STORAGE_CFG_FILENAME = "storage.cfg"
 STORAGE_CFG_BACKUP_FILENAME = "storage.cfg.bak"
-STORAGE_CFG_TARGET_LINE = "add_path $USERDIR/types"
+# DDNet's CServer::LoadMap() unconditionally prepends "maps/" to the map name
+# and asks Storage to resolve it. That means every add_path must point at a
+# directory that CONTAINS a maps/ subfolder. Upstream's official storage.cfg
+# lists each type dir explicitly because types/novice/ contains maps/,
+# types/brutal/ contains maps/, etc.
+#
+# testingmaps is synced by our map_sync.py under types/testingmaps/maps/
+# (mirroring the same maps/ subfolder convention as the other categories),
+# so it uses the same add_path pattern as the rest.
+STORAGE_CFG_TARGET_LINES = (
+    "add_path $USERDIR/types/novice",
+    "add_path $USERDIR/types/moderate",
+    "add_path $USERDIR/types/brutal",
+    "add_path $USERDIR/types/insane",
+    "add_path $USERDIR/types/dummy",
+    "add_path $USERDIR/types/ddmax.easy",
+    "add_path $USERDIR/types/ddmax.next",
+    "add_path $USERDIR/types/ddmax.pro",
+    "add_path $USERDIR/types/ddmax.nut",
+    "add_path $USERDIR/types/oldschool",
+    "add_path $USERDIR/types/solo",
+    "add_path $USERDIR/types/race",
+    "add_path $USERDIR/types/fun",
+    "add_path $USERDIR/types/event",
+    "add_path $USERDIR/types/testingmaps",
+)
 STORAGE_CFG_DEFAULT_CONTENT = (
     "add_path $USERDIR\n"
     "add_path $DATADIR\n"
     "add_path $CURRENTDIR\n"
-    "add_path $USERDIR/types\n"
+    + "\n".join(STORAGE_CFG_TARGET_LINES)
+    + "\n"
 )
 
 RECORD_MAPS_TABLE = "record_maps"
@@ -80,13 +106,17 @@ def _normalize(line: str) -> str:
     return re.sub(r"\s+", " ", line.strip())
 
 
-def _contains_target_line(content: str) -> bool:
-    target_norm = _normalize(STORAGE_CFG_TARGET_LINE)
+def _contains_line(content: str, target_line: str) -> bool:
+    target_norm = _normalize(target_line)
     for raw in content.splitlines():
         stripped = _strip_comment(raw)
         if _normalize(stripped) == target_norm:
             return True
     return False
+
+
+def _missing_target_lines(content: str) -> list[str]:
+    return [line for line in STORAGE_CFG_TARGET_LINES if not _contains_line(content, line)]
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -97,36 +127,54 @@ def _atomic_write_text(path: Path, content: str) -> None:
 
 
 def ensure_storage_cfg(ddnet_root: Path, callback: ProgressCallback | None = None) -> dict[str, Any]:
-    """Install or extend storage.cfg so DDNet's server finds types/.
+    """Install or extend storage.cfg so DDNet's server finds types/ category maps.
 
-    Returns a summary dict: {action, path, backup_path}.
+    Returns a summary dict: {action, path, backup_path, added_lines}.
       action in {"created", "appended", "no-op"}
     """
     cfg_path = ddnet_root / STORAGE_CFG_FILENAME
     backup_path = ddnet_root / STORAGE_CFG_BACKUP_FILENAME
 
     if not cfg_path.exists():
-        _emit(callback, stage="storage_cfg", message=f"Creating {cfg_path} with recursive types/ path")
+        _emit(callback, stage="storage_cfg",
+              message=f"Creating {cfg_path} with {len(STORAGE_CFG_TARGET_LINES)} type add_path entries")
         _atomic_write_text(cfg_path, STORAGE_CFG_DEFAULT_CONTENT)
-        return {"action": "created", "path": str(cfg_path), "backup_path": None}
+        return {
+            "action": "created",
+            "path": str(cfg_path),
+            "backup_path": None,
+            "added_lines": list(STORAGE_CFG_TARGET_LINES),
+        }
 
     existing = cfg_path.read_text(encoding="utf-8")
-    if _contains_target_line(existing):
-        _emit(callback, stage="storage_cfg", message=f"{cfg_path} already has '{STORAGE_CFG_TARGET_LINE}', no-op")
-        return {"action": "no-op", "path": str(cfg_path), "backup_path": None}
+    missing = _missing_target_lines(existing)
+    if not missing:
+        _emit(callback, stage="storage_cfg",
+              message=f"{cfg_path} already has all {len(STORAGE_CFG_TARGET_LINES)} type add_path entries, no-op")
+        return {
+            "action": "no-op",
+            "path": str(cfg_path),
+            "backup_path": None,
+            "added_lines": [],
+        }
 
-    # Append, backing up first (but never overwriting an existing .bak).
+    # Append missing lines. Back up the original first (but never overwrite
+    # an existing .bak, so we don't clobber a prior user backup).
     if not backup_path.exists():
         shutil.copy2(cfg_path, backup_path)
-    # Ensure trailing newline before appending
     new_content = existing
     if new_content and not new_content.endswith("\n"):
         new_content += "\n"
-    new_content += STORAGE_CFG_TARGET_LINE + "\n"
+    new_content += "\n".join(missing) + "\n"
     _atomic_write_text(cfg_path, new_content)
     _emit(callback, stage="storage_cfg",
-          message=f"Appended '{STORAGE_CFG_TARGET_LINE}' to {cfg_path} (backup: {backup_path})")
-    return {"action": "appended", "path": str(cfg_path), "backup_path": str(backup_path)}
+          message=f"Appended {len(missing)} missing add_path line(s) to {cfg_path} (backup: {backup_path})")
+    return {
+        "action": "appended",
+        "path": str(cfg_path),
+        "backup_path": str(backup_path),
+        "added_lines": missing,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +224,10 @@ def _collect_maps_from_types(types_root: Path) -> list[tuple[str, str]]:
     category is the first path component under types/ (e.g., 'novice', 'brutal',
     'testingmaps'). stem is the basename without '.map' extension — matches what
     the DDNet server uses as the map key.
+
+    Skips files directly under a category root: the DDNet server only resolves
+    maps via `<add_path>/maps/<stem>.map`, so .map files that aren't under a
+    `maps/` subfolder of their category can't be loaded anyway.
     """
     if not types_root.exists():
         return []
@@ -185,12 +237,11 @@ def _collect_maps_from_types(types_root: Path) -> list[tuple[str, str]]:
             continue
         rel = entry.relative_to(types_root)
         parts = rel.parts
-        if len(parts) < 2:
-            # Map file directly under types/ with no category — skip,
-            # not something we can classify.
+        # Expect shape: <category>/maps/<stem>.map (at least three parts).
+        # Category configs like types/novice/flexreset.cfg don't matter here.
+        if len(parts) < 3 or parts[1] != "maps":
             continue
         category = parts[0]
-        # Skip our own internal temp dirs
         if category.startswith(".") or category.startswith(".ddnetcontrol"):
             continue
         stem = entry.stem
@@ -209,16 +260,23 @@ def _table_row_counts(conn: sqlite3.Connection, tables: Iterable[str]) -> dict[s
     return counts
 
 
+RECORD_MAPS_SERVER_VALUE = "DDNet"
+
+
 def register_maps_in_db(
     ddnet_root: Path,
     manifest: list[tuple[str, str]] | None = None,
     callback: ProgressCallback | None = None,
-    server_alias_for_testingmaps: str = "testing",
 ) -> dict[str, Any]:
     """Register new maps in ddnet-server.sqlite's record_maps table.
 
     If `manifest` is None, enumerate from `types/`. Caller may pass a manifest
     directly (list of (category, stem) tuples) for performance.
+
+    Every inserted row uses `Server='DDNet'` — this matches DDNet's server
+    convention (see the legacy `%APPDATA%\\DDNet\\add_maps.ps1` script
+    upstream ships). Rows with other Server values cause sv_map lookups to
+    fail because the server matches on (Map, Server) when scoring.
 
     Returns summary dict with:
       path, rows_inserted, rows_already_present, rows_skipped_not_in_types,
@@ -267,12 +325,11 @@ def register_maps_in_db(
         rows_already_present = 0
 
         conn.execute("BEGIN")
-        for category, stem in deduped:
-            server_val = server_alias_for_testingmaps if category == "testingmaps" else category
+        for _category, stem in deduped:
             cur = conn.execute(
                 f"INSERT OR IGNORE INTO {RECORD_MAPS_TABLE} (Map, Server, Mapper, Points, Stars) "
                 f"VALUES (?, ?, ?, ?, ?)",
-                (stem, server_val, "Unknown", 0, 0),
+                (stem, RECORD_MAPS_SERVER_VALUE, "Unknown", 0, 0),
             )
             if cur.rowcount == 1:
                 rows_inserted += 1
@@ -310,6 +367,81 @@ def register_maps_in_db(
     return result
 
 
+def repair_server_column(
+    ddnet_root: Path,
+    callback: ProgressCallback | None = None,
+) -> dict[str, Any]:
+    """Opt-in one-time repair for rows with a wrong Server value.
+
+    Prior buggy versions of this module inserted record_maps rows with
+    Server=<category> (e.g. 'novice', 'brutal') or Server='testing', which
+    breaks DDNet's sv_map resolution — it expects Server='DDNet' for every
+    row (matching the legacy add_maps.ps1 upstream convention).
+
+    This repair updates ONLY rows where:
+      1. Server != 'DDNet' (so user's own rows that happen to use a different
+         value aren't mutated), AND
+      2. Map matches a stem we just synced under types/<category>/maps/
+         (so rows for maps the user manually added or that came from a
+         different source are never touched).
+
+    A backup is taken before the UPDATE runs, same as register_maps_in_db.
+    """
+    db_path = ddnet_root / SERVER_DB_FILENAME
+    types_root = ddnet_root / "types"
+    if not db_path.exists():
+        return {"action": "skipped-no-db", "rows_updated": 0, "backup_path": None}
+
+    manifest = _collect_maps_from_types(types_root)
+    our_stems = {stem for _cat, stem in manifest}
+    if not our_stems:
+        _emit(callback, stage="repair_server",
+              message="No maps found under types/, nothing to repair")
+        return {"action": "no-op-empty-manifest", "rows_updated": 0, "backup_path": None}
+
+    backup_path = _backup_server_db(db_path, callback)
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute("PRAGMA busy_timeout = 5000")
+        # Find rows that would be affected so we can log before the write.
+        placeholders = ",".join("?" * len(our_stems))
+        victims = conn.execute(
+            f"SELECT Map, Server FROM {RECORD_MAPS_TABLE} "
+            f"WHERE Server != ? AND Map IN ({placeholders})",
+            (RECORD_MAPS_SERVER_VALUE, *sorted(our_stems)),
+        ).fetchall()
+        if not victims:
+            _emit(callback, stage="repair_server",
+                  message=f"No rows need repair (all {len(our_stems)} our-maps rows already have Server='DDNet' or don't exist)")
+            return {
+                "action": "no-op-none-broken",
+                "rows_updated": 0,
+                "backup_path": str(backup_path) if backup_path else None,
+                "checked_stems": len(our_stems),
+            }
+
+        _emit(callback, stage="repair_server",
+              message=f"Updating {len(victims)} row(s) Server -> 'DDNet'")
+        conn.execute("BEGIN")
+        cur = conn.execute(
+            f"UPDATE {RECORD_MAPS_TABLE} SET Server = ? "
+            f"WHERE Server != ? AND Map IN ({placeholders})",
+            (RECORD_MAPS_SERVER_VALUE, RECORD_MAPS_SERVER_VALUE, *sorted(our_stems)),
+        )
+        conn.commit()
+        rows_updated = cur.rowcount
+    finally:
+        conn.close()
+
+    return {
+        "action": "ok",
+        "rows_updated": rows_updated,
+        "backup_path": str(backup_path) if backup_path else None,
+        "checked_stems": len(our_stems),
+        "victims_preview": [{"Map": m, "Server": s} for m, s in victims[:10]],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Combined entry for sync_ddnet_maps to call
 # ---------------------------------------------------------------------------
@@ -335,6 +467,12 @@ def main() -> int:
     parser.add_argument("--ddnet-root", help="Override DDNet root (defaults to %%APPDATA%%\\DDNet)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done; DB backup still taken for parity")
     parser.add_argument("--json", action="store_true", help="Print summary as JSON to stdout; progress to stderr")
+    parser.add_argument(
+        "--repair-server-column",
+        action="store_true",
+        help="One-time repair: UPDATE record_maps rows where Server != 'DDNet' AND Map is one we synced "
+             "under types/. Leaves rows for unknown maps (user-added, not from our sync) untouched.",
+    )
     args = parser.parse_args()
 
     ddnet_root = map_sync.get_ddnet_root(args.ddnet_root)
@@ -349,7 +487,7 @@ def main() -> int:
         existing = cfg_path.read_text(encoding="utf-8") if cfg_path.exists() else ""
         if not cfg_path.exists():
             cfg_action = "created"
-        elif _contains_target_line(existing):
+        elif not _missing_target_lines(existing):
             cfg_action = "no-op"
         else:
             cfg_action = "appended"
@@ -361,6 +499,8 @@ def main() -> int:
         }
     else:
         summary = register_with_server(ddnet_root, callback=cli_progress)
+        if args.repair_server_column:
+            summary["repair_server_column"] = repair_server_column(ddnet_root, callback=cli_progress)
 
     if args.json:
         print(json.dumps(summary, indent=2))
