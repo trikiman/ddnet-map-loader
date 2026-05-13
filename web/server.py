@@ -1002,9 +1002,10 @@ def run_server():
     print(f'\nServing files from: {os.getcwd()}')
     print('\nTo access from other devices on your network, use the Network URL')
     
-    # Create and start server in a separate thread
+    # Create and start server in a non-daemon thread so the process stays
+    # alive even if the tray icon exits or fails to start.
     server_thread = threading.Thread(target=httpd.serve_forever)
-    server_thread.daemon = True
+    server_thread.daemon = False
     server_thread.start()
     
     # Try to hide console window on Windows
@@ -1012,14 +1013,28 @@ def run_server():
         import ctypes
         ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
         print("Console window hidden")
-    except:
+    except Exception:
         print("Could not hide console window")
     
     print('\nMinimizing to system tray...')
     
-    # Create and run tray icon
+    # Create and run tray icon.
+    # icon.run() blocks the main thread while the tray is active.
+    # If it returns or crashes, keep the HTTP server alive anyway by
+    # falling back to a simple keep-alive loop so the process doesn't exit.
     icon = create_tray_icon(server_thread)
-    icon.run()
+    try:
+        icon.run()
+    except Exception as e:
+        print(f"Tray icon error: {e}")
+
+    # icon.run() returned (tray exited or failed) — keep the HTTP server
+    # alive so the shortcut still works even without a tray icon.
+    print("Tray icon exited — server still running on http://localhost:8299")
+    try:
+        server_thread.join()
+    except KeyboardInterrupt:
+        httpd.shutdown()
 
 if __name__ == '__main__':
     # Always log crashes to a file so we can diagnose "tray flashes and dies" issues.
