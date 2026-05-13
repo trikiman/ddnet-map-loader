@@ -89,10 +89,12 @@ Four phases, each one a clean slice of work with test evidence at the end:
 
 ## Current Execution Order
 
-1. Phase 1: Harden and Verify Sync Engine
-2. Phase 2: Server Visibility — `storage.cfg` and `record_maps`
-3. Phase 3: Verify Website Trigger and UI
-4. Phase 4: Native Trigger, Auto-Sync on Map Change, and Re-Audit
+1. ✅ Phase 1: Harden and Verify Sync Engine — commit `9195de8`
+2. ✅ Phase 2: Server Visibility — commit `d0314df`
+3. ✅ Phase 3: Verify Website Trigger and UI — commit `82bf6c1`
+4. ✅ Phase 4: Native Trigger, Auto-Sync on Map Change, and Re-Audit — commit `f217663`
+
+**Milestone v1.0 COMPLETE** — see `.planning/v1.0-MILESTONE-AUDIT.md` for full audit. 23/25 requirements PASS, 2 PARTIAL (external conditions), 0 FAIL.
 
 ## Requirements Coverage
 

@@ -87,36 +87,38 @@ The requirements below are the precise, testable version of those five sentences
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SYNC-01 | Phase 1 | Pending |
-| SYNC-02 | Phase 1 | Pending |
-| SYNC-03 | Phase 1 | Pending |
-| SYNC-04 | Phase 1 | Pending |
-| TEST-01 | Phase 1 | Pending |
-| TEST-02 | Phase 1 | Pending |
-| TEST-03 | Phase 1 | Pending |
-| CFG-01 | Phase 2 | Pending |
-| CFG-02 | Phase 2 | Pending |
-| CFG-03 | Phase 2 | Pending |
-| CFG-04 | Phase 2 | Pending |
-| DB-01 | Phase 2 | Pending |
-| DB-02 | Phase 2 | Pending |
-| DB-03 | Phase 2 | Pending |
-| DB-04 | Phase 2 | Pending |
-| TRIG-01 | Phase 3 | Pending |
-| TRIG-02 | Phase 3 | Pending |
-| TRIG-03 | Phase 4 | Pending |
-| TRIG-04 | Phase 4 | Pending |
-| SAFE-01 | Phase 1 | Pending |
-| SAFE-02 | Phase 1 | Pending |
-| SAFE-03 | Phase 1 | Pending |
-| SAFE-04 | Phase 2 | Pending |
-| SAFE-05 | Phase 1 | Pending |
-| SAFE-06 | Phase 4 | Pending |
+| SYNC-01 | Phase 1 | ✅ PASS |
+| SYNC-02 | Phase 1 | ✅ PASS |
+| SYNC-03 | Phase 1 | ✅ PASS |
+| SYNC-04 | Phase 1 | ✅ PASS |
+| TEST-01 | Phase 1 | 🟡 PARTIAL (external: live upstream URL broken) |
+| TEST-02 | Phase 1 | ✅ PASS |
+| TEST-03 | Phase 1 | ✅ PASS |
+| CFG-01 | Phase 2 | ✅ PASS |
+| CFG-02 | Phase 2 | ✅ PASS (unit test) |
+| CFG-03 | Phase 2 | ✅ PASS (unit test) |
+| CFG-04 | Phase 2 | 🟡 PARTIAL (needs live sv_map test) |
+| DB-01 | Phase 2 | ✅ PASS |
+| DB-02 | Phase 2 | ✅ PASS |
+| DB-03 | Phase 2 | ✅ PASS |
+| DB-04 | Phase 2 | ✅ PASS |
+| TRIG-01 | Phase 3 | ✅ PASS |
+| TRIG-02 | Phase 3 | ✅ PASS |
+| TRIG-03 | Phase 4 | ✅ PASS |
+| TRIG-04 | Phase 4 | ✅ PASS |
+| SAFE-01 | Phase 1 | ✅ PASS |
+| SAFE-02 | Phase 1 | ✅ PASS |
+| SAFE-03 | Phase 1 | ✅ PASS |
+| SAFE-04 | Phase 2 | ✅ PASS |
+| SAFE-05 | Phase 1 | ✅ PASS |
+| SAFE-06 | Phase 4 | ✅ PASS |
 
 **Coverage:**
 - v1.0 requirements: 25 total
 - Mapped to phases: 25 ✓
-- Unmapped: 0 ✓
+- PASS or PASS (unit test): 23 / 25
+- PARTIAL (external conditions): 2 / 25
+- FAIL: 0 / 25
 
 ---
 *Requirements defined: 2026-05-12 — fresh start after archiving legacy v1.0*
