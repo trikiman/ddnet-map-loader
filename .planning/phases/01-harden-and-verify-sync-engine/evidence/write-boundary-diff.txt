@@ -1,0 +1,7 @@
+# Write-boundary diff
+
+PASS: ddnet-server.sqlite SHA256 unchanged (89753b45df95...)
+PASS: ddnet-cache.sqlite3 SHA256 unchanged (bc9cb763cead...)
+PASS: maps/ unchanged (1799 files)
+PASS: downloadedmaps/ unchanged (307 files)
+INFO: types/ file count pre=46, post=2458 (delta=2412)

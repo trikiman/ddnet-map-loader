@@ -1,0 +1,42 @@
+{
+  "captured_at": "2026-05-12T23:55:20Z",
+  "files_count": 2468,
+  "files_len": 2468,
+  "first_10_keys": [
+    "brutal/flexreset.cfg",
+    "brutal/flexvotes.cfg",
+    "brutal/maps.txt",
+    "brutal/maps/-JustDoIt-.map",
+    "brutal/maps/-SKY IVLAND-.map",
+    "brutal/maps/2 To Tango.map",
+    "brutal/maps/4Four.map",
+    "brutal/maps/4s.map",
+    "brutal/maps/A Strange Dream.map",
+    "brutal/maps/A World Beyond.map"
+  ],
+  "last_10_keys": [
+    "solo/maps/run_guy_25.map",
+    "solo/maps/selfdragger.map",
+    "solo/maps/solo_castle.map",
+    "solo/maps/spy.map",
+    "solo/maps/taser.map",
+    "solo/maps/tlqkf 2.map",
+    "solo/maps/tlqkf.map",
+    "solo/maps/turboSeks.map",
+    "solo/maps/willow.map",
+    "solo/votes.cfg"
+  ],
+  "orphans": [],
+  "orphans_count": 0,
+  "sample_entry": {
+    "brutal/flexreset.cfg": {
+      "download_url": "https://raw.githubusercontent.com/ddnet/ddnet-maps/master/types/brutal/flexreset.cfg",
+      "sha": "f9ff3797fe2efce6e60d888f60116b1d2084d6fc",
+      "size": 132,
+      "source_path": "types/brutal/flexreset.cfg"
+    }
+  },
+  "state_path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types\\.ddnetcontrol-sync-state.json",
+  "synced_at": "2026-05-12T23:55:20Z",
+  "upstream_tree_sha": "14b4b9936f02da830f3ceaddc54f49ceec336cbf"
+}

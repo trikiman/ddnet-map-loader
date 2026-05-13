@@ -1,0 +1,6 @@
+{
+  "child_exit": 0,
+  "passed": true,
+  "stderr_excerpt": "",
+  "stdout": "{\"passed\": true, \"error_message\": \"Testing sync aborted \\u2014 1 URL(s) unreachable: Alpha.map (HEAD HTTPError 404)\", \"sentinel_intact\": true, \"temp_dir_absent\": true}"
+}

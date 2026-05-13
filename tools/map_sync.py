@@ -155,6 +155,22 @@ def sync_official_types(
     dry_run: bool = False,
     callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
+    # Sweep any orphan download temp files from a prior hard-killed run.
+    # stream_download cleans on exception, but OS-level kill bypasses that.
+    if not dry_run and types_root.exists():
+        orphan_count = 0
+        for orphan in types_root.rglob(".ddnetcontrol-download-*"):
+            try:
+                orphan.unlink()
+                orphan_count += 1
+            except OSError:
+                pass
+        if orphan_count:
+            emit_progress(
+                callback, stage="official",
+                message=f"Swept {orphan_count} leftover download orphan(s) from prior run",
+            )
+
     emit_progress(callback, stage="official", message="Fetching upstream official types tree")
     tree_payload = request_json(OFFICIAL_TREE_URL)
     entries = collect_official_entries(tree_payload)
@@ -413,6 +429,7 @@ def sync_ddnet_maps(
     ddnet_root: str | None = None,
     dry_run: bool = False,
     callback: ProgressCallback | None = None,
+    register_with_server: bool = False,
 ) -> dict[str, Any]:
     root = get_ddnet_root(ddnet_root)
     types_root = root / "types"
@@ -429,6 +446,7 @@ def sync_ddnet_maps(
         "state_file": str(state_path),
         "lock_file": str(lock_path),
         "dry_run": dry_run,
+        "register_with_server": register_with_server,
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -452,6 +470,18 @@ def sync_ddnet_maps(
 
         if not dry_run:
             save_state(state_path, state)
+
+        # Phase 2: server visibility. Off by default to avoid surprising
+        # the Phase 1 verification matrix that runs before this feature is
+        # wired into callers (website / native CLI).
+        if register_with_server and not dry_run:
+            try:
+                # Import lazily so tests of sync_* don't pull in sqlite3 stubbing.
+                import server_register  # noqa: WPS433
+            except ImportError:
+                # Also handle the case where this module is on the path under a different name
+                from tools import server_register  # type: ignore
+            summary["server_register"] = server_register.register_with_server(root, callback=callback)
 
         summary["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         summary["success"] = True
@@ -505,6 +535,11 @@ def main() -> int:
         action="store_true",
         help="Print the final summary as JSON to stdout (progress goes to stderr)",
     )
+    parser.add_argument(
+        "--register-with-server",
+        action="store_true",
+        help="After sync, install storage.cfg (if missing) and INSERT OR IGNORE new maps into ddnet-server.sqlite record_maps (Phase 2)",
+    )
     args = parser.parse_args()
 
     def cli_progress(payload: dict[str, Any]) -> None:
@@ -519,6 +554,7 @@ def main() -> int:
         ddnet_root=args.ddnet_root,
         dry_run=args.dry_run,
         callback=cli_progress,
+        register_with_server=args.register_with_server,
     )
 
     if args.json:

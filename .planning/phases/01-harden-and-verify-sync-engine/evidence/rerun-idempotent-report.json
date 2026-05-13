@@ -1,0 +1,23 @@
+{
+  "_elapsed_s": 0.8,
+  "ddnet_root": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet",
+  "dry_run": false,
+  "finished_at": "2026-05-12T23:55:20Z",
+  "lock_file": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types\\.ddnetcontrol-sync.lock",
+  "mode": "official",
+  "official": {
+    "created": 0,
+    "downloaded_bytes": 0,
+    "dry_run": false,
+    "orphaned_local_files": 0,
+    "remote_file_count": 2468,
+    "remote_total_bytes": 1086272160,
+    "skipped": 2468,
+    "updated": 0
+  },
+  "register_with_server": false,
+  "started_at": "2026-05-12T23:55:20Z",
+  "state_file": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types\\.ddnetcontrol-sync-state.json",
+  "success": true,
+  "types_root": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types"
+}

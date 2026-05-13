@@ -217,6 +217,29 @@ class SyncOfficialFilesCountTest(unittest.TestCase):
             self.assertEqual(state["official"]["files_count"], 1)
             self.assertEqual(state["official"]["files_count"], len(state["official"]["files"]))
 
+    def test_orphan_download_temp_files_swept_on_start(self) -> None:
+        """After a hard-kill leaves .ddnetcontrol-download-* files behind, next run sweeps them."""
+        with tempfile.TemporaryDirectory() as root:
+            types_root = Path(root)
+            # Simulate orphan from hard-killed prior run
+            (types_root / "novice").mkdir(parents=True)
+            orphan1 = types_root / "novice" / ".ddnetcontrol-download-abc123"
+            orphan1.write_bytes(b"partial garbage")
+            orphan2 = types_root / ".ddnetcontrol-download-xyz789"
+            orphan2.write_bytes(b"more garbage")
+
+            self.assertTrue(orphan1.exists())
+            self.assertTrue(orphan2.exists())
+
+            # Canned empty tree payload so sync_official_types does nothing else
+            canned_tree = {"sha": "0" * 40, "tree": []}
+            with mock.patch.object(map_sync, "request_json", return_value=canned_tree):
+                state = {"version": 1, "official": {"files": {}}, "testing": {"files": {}}}
+                map_sync.sync_official_types(types_root, state, dry_run=False)
+
+            self.assertFalse(orphan1.exists(), "orphan1 should have been swept")
+            self.assertFalse(orphan2.exists(), "orphan2 should have been swept")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
