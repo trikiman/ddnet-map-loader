@@ -1,0 +1,15 @@
+# Write-boundary diff (Phase 2)
+
+PASS: ddnet-cache.sqlite3 SHA256 unchanged (bc9cb763cead...)
+INFO: ddnet-server.sqlite SHA256 changed (expected — record_maps rows inserted)
+PASS: maps/ unchanged (1799 files)
+PASS: downloadedmaps/ unchanged (307 files)
+PASS: record_race row count unchanged (44)
+PASS: record_teamrace row count unchanged (0)
+PASS: record_saves row count unchanged (0)
+PASS: record_points row count unchanged (21)
+PASS: record_race_backup row count unchanged (0)
+PASS: record_teamrace_backup row count unchanged (0)
+PASS: record_saves_backup row count unchanged (0)
+PASS: record_maps row count 3382 -> 3438 (+56 new, none removed)
+PASS: storage.cfg exists and contains add_path $USERDIR/types

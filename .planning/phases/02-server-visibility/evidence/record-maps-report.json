@@ -1,0 +1,316 @@
+{
+  "action": "ok",
+  "backup_path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\.ddnetcontrol-server-backup-20260513T000444Z.sqlite",
+  "manifest_size": 2458,
+  "other_table_counts": {
+    "post": {
+      "record_points": 21,
+      "record_race": 44,
+      "record_race_backup": 0,
+      "record_saves": 0,
+      "record_saves_backup": 0,
+      "record_teamrace": 0,
+      "record_teamrace_backup": 0
+    },
+    "pre": {
+      "record_points": 21,
+      "record_race": 44,
+      "record_race_backup": 0,
+      "record_saves": 0,
+      "record_saves_backup": 0,
+      "record_teamrace": 0,
+      "record_teamrace_backup": 0
+    }
+  },
+  "other_table_counts_unchanged": true,
+  "path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\ddnet-server.sqlite",
+  "post_sample_first_20": [
+    {
+      "Map": "#MegaRosenkohl",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "#wontfix",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "(wasntme)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-273",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-273_f46923585118c257164f1f9f9f5d70192cea269f3085f5a4e82608b2b839dcac_5_141_9_197",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-Ikarus-",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-JustDoIt-",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-SKY IVLAND-",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": ".Background'",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "0 KBeeeR S - 1",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "0 KBeeeR S - 2",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "0 to 100",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "007 - 1",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "007 - 2",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "06c6d473864c51b7",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1 (1)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1 (1) (1)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1 (2)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "103456395623427276",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    }
+  ],
+  "pre_sample_first_20": [
+    {
+      "Map": "#MegaRosenkohl",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "#wontfix",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "(wasntme)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-273",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-273_f46923585118c257164f1f9f9f5d70192cea269f3085f5a4e82608b2b839dcac_5_141_9_197",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-Ikarus-",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-JustDoIt-",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "-SKY IVLAND-",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": ".Background'",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "0 KBeeeR S - 1",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "0 KBeeeR S - 2",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "0 to 100",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "007 - 1",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "007 - 2",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "06c6d473864c51b7",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1 (1)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1 (1) (1)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "1 (2)",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    },
+    {
+      "Map": "103456395623427276",
+      "Mapper": "Unknown",
+      "Points": 0,
+      "Server": "DDNet",
+      "Stars": 0
+    }
+  ],
+  "record_maps_count_post": 3438,
+  "record_maps_count_pre": 3382,
+  "rows_already_present": 2398,
+  "rows_inserted": 56,
+  "rows_skipped_duplicate_stem": 4
+}

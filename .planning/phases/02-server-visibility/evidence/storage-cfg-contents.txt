@@ -1,0 +1,4 @@
+add_path $USERDIR
+add_path $DATADIR
+add_path $CURRENTDIR
+add_path $USERDIR/types
