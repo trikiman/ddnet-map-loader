@@ -36,39 +36,73 @@ ProgressCallback = Callable[[dict[str, Any]], None]
 
 STORAGE_CFG_FILENAME = "storage.cfg"
 STORAGE_CFG_BACKUP_FILENAME = "storage.cfg.bak"
-# DDNet's CServer::LoadMap() unconditionally prepends "maps/" to the map name
-# and asks Storage to resolve it. That means every add_path must point at a
-# directory that CONTAINS a maps/ subfolder. Upstream's official storage.cfg
-# lists each type dir explicitly because types/novice/ contains maps/,
-# types/brutal/ contains maps/, etc.
+# DDNet's storage subsystem (src/engine/shared/storage.cpp) has two crucial
+# constraints for our "show category maps on server" use case:
 #
-# testingmaps is synced by our map_sync.py under types/testingmaps/maps/
-# (mirroring the same maps/ subfolder convention as the other categories),
-# so it uses the same add_path pattern as the rest.
-STORAGE_CFG_TARGET_LINES = (
-    "add_path $USERDIR/types/novice",
-    "add_path $USERDIR/types/moderate",
-    "add_path $USERDIR/types/brutal",
-    "add_path $USERDIR/types/insane",
-    "add_path $USERDIR/types/dummy",
-    "add_path $USERDIR/types/ddmax.easy",
-    "add_path $USERDIR/types/ddmax.next",
-    "add_path $USERDIR/types/ddmax.pro",
-    "add_path $USERDIR/types/ddmax.nut",
-    "add_path $USERDIR/types/oldschool",
-    "add_path $USERDIR/types/solo",
-    "add_path $USERDIR/types/race",
-    "add_path $USERDIR/types/fun",
-    "add_path $USERDIR/types/event",
-    "add_path $USERDIR/types/testingmaps",
+#  1. AddPath() treats $USERDIR/$DATADIR/$CURRENTDIR as STANDALONE tokens,
+#     not prefixes. Writing "add_path $USERDIR/types/oldschool" fails with
+#     "cannot add path which is not a directory" because the server literally
+#     tries to open a path named "$USERDIR/types/oldschool". We therefore
+#     emit absolute paths for per-category entries.
+#
+#  2. MAX_PATHS = 16. The first 3 slots go to $USERDIR / $DATADIR /
+#     $CURRENTDIR (the defaults), leaving 13 category slots. We order the
+#     category list so the categories the user actually plays (novice +
+#     brutal + testingmaps) are always in the first 13 even if we need to
+#     truncate.
+#
+#  3. CServer::LoadMap() prepends "maps/" to the map name, so every
+#     add_path must point at a directory that CONTAINS a "maps/" subfolder.
+#     Upstream's types/novice/, types/oldschool/ etc. all do, and our
+#     sync_testing_maps writes to types/testingmaps/maps/.
+DDNET_MAX_PATHS = 16
+STORAGE_CFG_BASE_LINES = (
+    "add_path $USERDIR",
+    "add_path $DATADIR",
+    "add_path $CURRENTDIR",
 )
-STORAGE_CFG_DEFAULT_CONTENT = (
-    "add_path $USERDIR\n"
-    "add_path $DATADIR\n"
-    "add_path $CURRENTDIR\n"
-    + "\n".join(STORAGE_CFG_TARGET_LINES)
-    + "\n"
+# Category order is significant — when truncating to fit MAX_PATHS we keep
+# the earlier entries. Testing maps first, then the playable ddrace types
+# in order of community popularity.
+STORAGE_CFG_CATEGORIES = (
+    "testingmaps",
+    "novice", "moderate", "brutal", "insane",
+    "oldschool", "solo", "race",
+    "dummy",
+    "ddmax.easy", "ddmax.next", "ddmax.pro", "ddmax.nut",
+    "fun", "event",
 )
+
+
+def _build_storage_cfg_target_lines(ddnet_root: Path) -> list[str]:
+    """Return the list of `add_path ...` lines for the given DDNet root,
+    truncated to DDNET_MAX_PATHS - len(BASE_LINES) entries and filtered to
+    categories whose directory actually exists."""
+    types_root = ddnet_root / "types"
+    max_categories = DDNET_MAX_PATHS - len(STORAGE_CFG_BASE_LINES)
+    lines: list[str] = []
+    for cat in STORAGE_CFG_CATEGORIES:
+        if len(lines) >= max_categories:
+            break
+        cat_dir = types_root / cat
+        if cat_dir.is_dir():
+            # DDNet accepts forward slashes on all platforms; as_posix()
+            # normalizes Windows backslashes.
+            lines.append(f"add_path {cat_dir.as_posix()}")
+    return lines
+
+
+def _build_storage_cfg_content(ddnet_root: Path) -> str:
+    header = (
+        "####\n"
+        "# Written by ddnetcontrol.\n"
+        "# DDNet's Storage AddPath requires $USERDIR/$DATADIR/$CURRENTDIR as\n"
+        "# STANDALONE tokens, not prefixes. Use absolute paths for per-category\n"
+        "# maps. MAX_PATHS is 16, so at most 13 category entries fit.\n"
+        "####\n\n"
+    )
+    lines = list(STORAGE_CFG_BASE_LINES) + _build_storage_cfg_target_lines(ddnet_root)
+    return header + "\n".join(lines) + "\n"
 
 RECORD_MAPS_TABLE = "record_maps"
 SERVER_DB_FILENAME = "ddnet-server.sqlite"
@@ -115,8 +149,8 @@ def _contains_line(content: str, target_line: str) -> bool:
     return False
 
 
-def _missing_target_lines(content: str) -> list[str]:
-    return [line for line in STORAGE_CFG_TARGET_LINES if not _contains_line(content, line)]
+def _missing_target_lines(content: str, target_lines: list[str] | tuple[str, ...]) -> list[str]:
+    return [line for line in target_lines if not _contains_line(content, line)]
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -126,31 +160,46 @@ def _atomic_write_text(path: Path, content: str) -> None:
     os.replace(tmp, path)
 
 
-def ensure_storage_cfg(ddnet_root: Path, callback: ProgressCallback | None = None) -> dict[str, Any]:
+def ensure_storage_cfg(
+    ddnet_root: Path,
+    callback: ProgressCallback | None = None,
+    storage_cfg_path: Path | None = None,
+) -> dict[str, Any]:
     """Install or extend storage.cfg so DDNet's server finds types/ category maps.
+
+    `ddnet_root` is the user-data root (typically `%APPDATA%\\DDNet`) — the
+    location whose `types/<category>/maps/` will be referenced from the cfg.
+
+    `storage_cfg_path` is where the storage.cfg file lives. When omitted it
+    defaults to `<ddnet_root>/storage.cfg`, but DDNet's server reads its
+    storage.cfg from `$CURRENTDIR` (the directory it's started from). For
+    Steam-installed servers that's the install folder, NOT %APPDATA%, so
+    callers wiring the integration should pass the install dir explicitly.
 
     Returns a summary dict: {action, path, backup_path, added_lines}.
       action in {"created", "appended", "no-op"}
     """
-    cfg_path = ddnet_root / STORAGE_CFG_FILENAME
-    backup_path = ddnet_root / STORAGE_CFG_BACKUP_FILENAME
+    cfg_path = storage_cfg_path if storage_cfg_path is not None else (ddnet_root / STORAGE_CFG_FILENAME)
+    backup_path = cfg_path.with_suffix(cfg_path.suffix + ".bak") if cfg_path.suffix else cfg_path.with_name(cfg_path.name + ".bak")
+    target_lines = _build_storage_cfg_target_lines(ddnet_root)
 
     if not cfg_path.exists():
+        full_content = _build_storage_cfg_content(ddnet_root)
         _emit(callback, stage="storage_cfg",
-              message=f"Creating {cfg_path} with {len(STORAGE_CFG_TARGET_LINES)} type add_path entries")
-        _atomic_write_text(cfg_path, STORAGE_CFG_DEFAULT_CONTENT)
+              message=f"Creating {cfg_path} with {len(target_lines)} type add_path entries")
+        _atomic_write_text(cfg_path, full_content)
         return {
             "action": "created",
             "path": str(cfg_path),
             "backup_path": None,
-            "added_lines": list(STORAGE_CFG_TARGET_LINES),
+            "added_lines": target_lines,
         }
 
     existing = cfg_path.read_text(encoding="utf-8")
-    missing = _missing_target_lines(existing)
+    missing = _missing_target_lines(existing, target_lines)
     if not missing:
         _emit(callback, stage="storage_cfg",
-              message=f"{cfg_path} already has all {len(STORAGE_CFG_TARGET_LINES)} type add_path entries, no-op")
+              message=f"{cfg_path} already has all {len(target_lines)} type add_path entries, no-op")
         return {
             "action": "no-op",
             "path": str(cfg_path),
@@ -448,9 +497,10 @@ def repair_server_column(
 def register_with_server(
     ddnet_root: Path,
     callback: ProgressCallback | None = None,
+    storage_cfg_path: Path | None = None,
 ) -> dict[str, Any]:
     """Convenience combiner used by sync_ddnet_maps when register_with_server=True."""
-    cfg_summary = ensure_storage_cfg(ddnet_root, callback=callback)
+    cfg_summary = ensure_storage_cfg(ddnet_root, callback=callback, storage_cfg_path=storage_cfg_path)
     db_summary = register_maps_in_db(ddnet_root, manifest=None, callback=callback)
     return {"storage_cfg": cfg_summary, "record_maps": db_summary}
 
@@ -465,6 +515,13 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Ensure storage.cfg + register synced maps in ddnet-server.sqlite")
     parser.add_argument("--ddnet-root", help="Override DDNet root (defaults to %%APPDATA%%\\DDNet)")
+    parser.add_argument(
+        "--storage-cfg",
+        help="Override storage.cfg target path. DDNet's server reads its storage.cfg from "
+             "$CURRENTDIR (the directory it's launched from). For Steam-installed servers "
+             "that's the install folder. Pass the install dir's storage.cfg here so the "
+             "running server actually picks up our category add_paths.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done; DB backup still taken for parity")
     parser.add_argument("--json", action="store_true", help="Print summary as JSON to stdout; progress to stderr")
     parser.add_argument(
@@ -483,22 +540,24 @@ def main() -> int:
 
     if args.dry_run:
         # Best-effort preview: report what ensure_storage_cfg WOULD do and what maps would be inserted.
-        cfg_path = ddnet_root / STORAGE_CFG_FILENAME
+        cfg_path = Path(args.storage_cfg) if args.storage_cfg else (ddnet_root / STORAGE_CFG_FILENAME)
         existing = cfg_path.read_text(encoding="utf-8") if cfg_path.exists() else ""
+        target_lines = _build_storage_cfg_target_lines(ddnet_root)
         if not cfg_path.exists():
             cfg_action = "created"
-        elif not _missing_target_lines(existing):
+        elif not _missing_target_lines(existing, target_lines):
             cfg_action = "no-op"
         else:
             cfg_action = "appended"
         manifest = _collect_maps_from_types(ddnet_root / "types")
         summary = {
-            "storage_cfg": {"action": cfg_action, "path": str(cfg_path)},
+            "storage_cfg": {"action": cfg_action, "path": str(cfg_path), "target_lines": target_lines},
             "record_maps": {"would_consider": len(manifest)},
             "dry_run": True,
         }
     else:
-        summary = register_with_server(ddnet_root, callback=cli_progress)
+        storage_cfg_path = Path(args.storage_cfg) if args.storage_cfg else None
+        summary = register_with_server(ddnet_root, callback=cli_progress, storage_cfg_path=storage_cfg_path)
         if args.repair_server_column:
             summary["repair_server_column"] = repair_server_column(ddnet_root, callback=cli_progress)
 

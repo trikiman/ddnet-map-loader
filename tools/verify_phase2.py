@@ -161,16 +161,14 @@ def main() -> int:
     cfg_path = ddnet_root / "storage.cfg"
     cfg_contents = cfg_path.read_text(encoding="utf-8") if cfg_path.exists() else ""
     write_text(EVIDENCE_DIR / "storage-cfg-contents.txt", cfg_contents)
-    missing_target_lines = [
-        line for line in server_register.STORAGE_CFG_TARGET_LINES
-        if line not in cfg_contents
-    ]
+    target_lines = server_register._build_storage_cfg_target_lines(ddnet_root)
+    missing_target_lines = [line for line in target_lines if line not in cfg_contents]
     cfg_report = {
         "action": summary["storage_cfg"]["action"],
         "path": summary["storage_cfg"]["path"],
         "backup_path": summary["storage_cfg"]["backup_path"],
         "exists_after": cfg_path.exists(),
-        "target_lines_count": len(server_register.STORAGE_CFG_TARGET_LINES),
+        "target_lines_count": len(target_lines),
         "missing_target_lines": missing_target_lines,
         "contains_all_target_lines": not missing_target_lines,
         "sha256_after": sha256_file(cfg_path),
@@ -254,7 +252,7 @@ def main() -> int:
 
     # storage.cfg must exist after and contain ALL target category add_paths
     if cfg_path.exists() and not missing_target_lines:
-        line = f"PASS: storage.cfg exists and contains all {len(server_register.STORAGE_CFG_TARGET_LINES)} target add_path entries"
+        line = f"PASS: storage.cfg exists and contains all {len(target_lines)} target add_path entries"
     else:
         line = (
             f"FAIL: storage.cfg state unexpected "

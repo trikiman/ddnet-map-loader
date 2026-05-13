@@ -487,6 +487,7 @@ def sync_ddnet_maps(
     dry_run: bool = False,
     callback: ProgressCallback | None = None,
     register_with_server: bool = False,
+    storage_cfg_path: str | None = None,
 ) -> dict[str, Any]:
     root = get_ddnet_root(ddnet_root)
     types_root = root / "types"
@@ -538,7 +539,10 @@ def sync_ddnet_maps(
             except ImportError:
                 # Also handle the case where this module is on the path under a different name
                 from tools import server_register  # type: ignore
-            summary["server_register"] = server_register.register_with_server(root, callback=callback)
+            cfg_target = Path(storage_cfg_path) if storage_cfg_path else None
+            summary["server_register"] = server_register.register_with_server(
+                root, callback=callback, storage_cfg_path=cfg_target,
+            )
 
         summary["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         summary["success"] = True
@@ -597,6 +601,12 @@ def main() -> int:
         action="store_true",
         help="After sync, install storage.cfg (if missing) and INSERT OR IGNORE new maps into ddnet-server.sqlite record_maps (Phase 2)",
     )
+    parser.add_argument(
+        "--storage-cfg",
+        help="Override storage.cfg target path. DDNet's server reads its storage.cfg "
+             "from $CURRENTDIR (the directory it's launched from). For Steam-installed "
+             "servers that's the install folder; pass that location's storage.cfg here.",
+    )
     args = parser.parse_args()
 
     def cli_progress(payload: dict[str, Any]) -> None:
@@ -612,6 +622,7 @@ def main() -> int:
         dry_run=args.dry_run,
         callback=cli_progress,
         register_with_server=args.register_with_server,
+        storage_cfg_path=args.storage_cfg,
     )
 
     if args.json:

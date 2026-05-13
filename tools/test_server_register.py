@@ -58,6 +58,10 @@ def _build_fake_ddnet_root(tmp: Path) -> Path:
     """Build a realistic %APPDATA%\\DDNet layout under tmp with a minimal server DB."""
     ddnet_root = tmp / "DDNet"
     (ddnet_root / "types").mkdir(parents=True)
+    # Pre-create a couple of category directories so _build_storage_cfg_target_lines
+    # has something to emit. Tests that need more categories add them.
+    (ddnet_root / "types" / "novice").mkdir(parents=True)
+    (ddnet_root / "types" / "testingmaps").mkdir(parents=True)
     (ddnet_root / "maps").mkdir(parents=True)  # must remain untouched
     (ddnet_root / "downloadedmaps").mkdir(parents=True)  # must remain untouched
     # Seed an unrelated map in maps/ to audit later
@@ -109,8 +113,12 @@ class StorageCfgInstallTest(unittest.TestCase):
             cfg = ddnet_root / "storage.cfg"
             self.assertTrue(cfg.exists())
             content = cfg.read_text(encoding="utf-8")
-            self.assertIn("add_path $USERDIR/types", content)
-            self.assertIn("add_path $USERDIR\n", content)
+            # Base lines always present
+            for base in sr.STORAGE_CFG_BASE_LINES:
+                self.assertIn(base, content)
+            # Category lines use absolute paths (not $USERDIR/...)
+            novice_abs = (ddnet_root / "types" / "novice").as_posix()
+            self.assertIn(f"add_path {novice_abs}", content)
             # No backup created when file was absent
             self.assertIsNone(result["backup_path"])
 
@@ -124,9 +132,11 @@ class StorageCfgInstallTest(unittest.TestCase):
             result = sr.ensure_storage_cfg(ddnet_root)
             self.assertEqual(result["action"], "appended")
             new_content = cfg.read_text(encoding="utf-8")
-            # All target category lines must be present after append
-            for target in sr.STORAGE_CFG_TARGET_LINES:
-                self.assertIn(target, new_content)
+            # The category absolute paths for the dirs we created in fixture
+            # should now be present
+            for cat in ("novice", "testingmaps"):
+                expected = f"add_path {(ddnet_root / 'types' / cat).as_posix()}"
+                self.assertIn(expected, new_content)
             self.assertIn("# some comment", new_content)  # existing content preserved
             # Backup matches original
             backup = ddnet_root / "storage.cfg.bak"
@@ -137,11 +147,10 @@ class StorageCfgInstallTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ddnet_root = _build_fake_ddnet_root(Path(tmp))
             cfg = ddnet_root / "storage.cfg"
-            # Include all target lines with different whitespace and comments;
+            target_lines = sr._build_storage_cfg_target_lines(ddnet_root)
+            # Include all target lines with whitespace and comments;
             # ensure_storage_cfg should recognize each and make no changes.
-            target_block = "\n".join(
-                f"  {line}   # category" for line in sr.STORAGE_CFG_TARGET_LINES
-            )
+            target_block = "\n".join(f"  {line}   # category" for line in target_lines)
             original = (
                 "# ddnet storage config\n"
                 "add_path $USERDIR\n"

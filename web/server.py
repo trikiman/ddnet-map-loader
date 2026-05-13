@@ -108,6 +108,77 @@ MAPS_FOLDER = os.path.expanduser('~\\AppData\\Roaming\\DDNet\\maps')
 # Default: 50 MB max size (adjust if needed)
 MAP_MAX_SIZE_BYTES = 50 * 1024 * 1024
 
+
+def _resolve_server_storage_cfg() -> str | None:
+    """Find the storage.cfg the local DDNet server actually reads.
+
+    DDNet's storage subsystem reads `storage.cfg` from the directory the
+    server process was launched from ($CURRENTDIR), NOT from %APPDATA%. For
+    Steam-installed servers that's the Steam install folder. We probe a few
+    common locations and let an env var override.
+
+    Resolution order:
+      1. DDNETCONTROL_STORAGE_CFG env var (explicit override)
+      2. Directory of any currently-running DDNet-Server.exe process
+      3. First Steam install discovered alphabetically across drive letters
+
+    Returns the absolute path string, or None when no install is detected
+    (in which case the caller falls back to %APPDATA%\\DDNet\\storage.cfg).
+    """
+    override = os.environ.get("DDNETCONTROL_STORAGE_CFG")
+    if override:
+        return override
+
+    # Prefer the install that's currently running — that's the one the user
+    # cares about. Use WMIC (Windows-only) to grab the executable path of any
+    # live DDNet-Server.exe process. Best-effort: don't fail if WMIC isn't
+    # available or returns nothing useful.
+    try:
+        result = subprocess.run(
+            ["wmic", "process", "where", "name='DDNet-Server.exe'", "get",
+             "ExecutablePath", "/format:list"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.lower().startswith("executablepath="):
+                exe_path = line.split("=", 1)[1].strip()
+                if exe_path:
+                    cfg = os.path.join(os.path.dirname(exe_path), "storage.cfg")
+                    if os.path.isfile(cfg):
+                        return cfg
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
+    # Fallback: probe common Steam install paths across drive letters and
+    # return the install with the most recent DDNet-Server.exe modification
+    # time — that's almost always the one the user is actually using
+    # (Steam updates the active library copy).
+    candidate_relpaths = [
+        r"steamapps\common\DDraceNetwork\ddnet",
+        r"SteamLibrary\steamapps\common\DDraceNetwork\ddnet",
+    ]
+    drives = [f"{d}:\\" for d in "CDEFGHIJKLMNOPQRSTUVWXYZ"]
+    found_installs: list[tuple[float, str]] = []  # (mtime, storage.cfg path)
+    for drive in drives:
+        for rel in candidate_relpaths:
+            install_dir = os.path.join(drive, rel)
+            cfg = os.path.join(install_dir, "storage.cfg")
+            exe = os.path.join(install_dir, "DDNet-Server.exe")
+            if os.path.isfile(cfg) and os.path.isfile(exe):
+                try:
+                    found_installs.append((os.path.getmtime(exe), cfg))
+                except OSError:
+                    pass
+    if found_installs:
+        # Sort by mtime descending — newest first.
+        found_installs.sort(key=lambda x: x[0], reverse=True)
+        return found_installs[0][1]
+    return None
+
+
+SERVER_STORAGE_CFG_PATH = _resolve_server_storage_cfg()
+
 # Simple in-memory token store (clears on server restart)
 TOKENS: set[str] = set()
 SYNC_STATUS_LOCK = threading.Lock()
@@ -160,7 +231,14 @@ def run_sync_job(mode: str) -> None:
         )
 
     try:
-        summary = sync_ddnet_maps(mode=mode, callback=on_progress, register_with_server=True)
+        summary = sync_ddnet_maps(
+            mode=mode,
+            callback=on_progress,
+            register_with_server=True,
+            storage_cfg_path=SERVER_STORAGE_CFG_PATH,
+        )
+        if SERVER_STORAGE_CFG_PATH:
+            append_sync_log(f"Wrote storage.cfg to {SERVER_STORAGE_CFG_PATH}")
         append_sync_log("Sync completed successfully")
         set_sync_status(
             running=False,
