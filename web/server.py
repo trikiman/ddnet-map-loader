@@ -2,9 +2,10 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 import copy
 import json
 import os
+import re as _re_multipart
 import subprocess
+from io import BytesIO
 from urllib.parse import parse_qs, unquote, quote
-import cgi
 import time
 import base64
 import socket
@@ -18,6 +19,70 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+
+
+# ---------------------------------------------------------------------------
+# Minimal multipart/form-data parser (stdlib only).
+#
+# Replaces `cgi.FieldStorage` which was removed from Python 3.13's stdlib.
+# Parses a single file upload from a multipart body, which is all this server
+# needs — it has exactly one /upload endpoint that expects a "file" field.
+#
+# Returns (filename, BytesIO) for the first file field found, or (None, None)
+# if no file present or the body isn't multipart.
+# ---------------------------------------------------------------------------
+def _parse_multipart_file_upload(rfile, content_type: str, content_length: int):
+    if not content_type or "multipart/form-data" not in content_type.lower():
+        return None, None
+    if content_length <= 0:
+        return None, None
+
+    m = _re_multipart.search(r"boundary=([^;\s]+)", content_type, _re_multipart.IGNORECASE)
+    if not m:
+        return None, None
+    boundary = m.group(1).strip('"').encode("ascii", errors="replace")
+
+    # Read the whole body. Current cgi.FieldStorage path also buffered the
+    # body (to memory for small, to temp file for large). MAP_MAX_SIZE_BYTES
+    # is enforced downstream on stream-save, not here.
+    body = rfile.read(content_length)
+
+    delimiter = b"--" + boundary
+    # Split on the delimiter; first element is preamble (empty normally),
+    # last element is the closing "--" marker or trailing whitespace.
+    parts = body.split(delimiter)
+    for part in parts[1:-1]:
+        # Each real part starts with \r\n after the delimiter.
+        part = part.lstrip(b"\r\n")
+        # Trailing \r\n before the next delimiter.
+        if part.endswith(b"\r\n"):
+            part = part[:-2]
+        header_end = part.find(b"\r\n\r\n")
+        if header_end == -1:
+            continue
+        raw_headers = part[:header_end].decode("utf-8", errors="replace")
+        part_body = part[header_end + 4:]
+
+        disp_m = _re_multipart.search(
+            r"Content-Disposition:\s*form-data;\s*(.*)",
+            raw_headers,
+            _re_multipart.IGNORECASE,
+        )
+        if not disp_m:
+            continue
+        disp = disp_m.group(1)
+        name_m = _re_multipart.search(r'name="([^"]*)"', disp)
+        filename_m = _re_multipart.search(r'filename="([^"]*)"', disp)
+        if filename_m is None:
+            continue
+        # Only return the part whose field name is "file" — matches the
+        # existing frontend contract (<input type="file" name="file">).
+        if name_m is None or name_m.group(1) != "file":
+            continue
+        return filename_m.group(1), BytesIO(part_body)
+
+    return None, None
+
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
@@ -422,33 +487,26 @@ class MapServerHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Invalid token"}).encode())
                 return
 
-            # Parse the form data
-            form = cgi.FieldStorage(
-                fp=self.rfile,
-                headers=self.headers,
-                environ={'REQUEST_METHOD': 'POST',
-                         'CONTENT_TYPE': self.headers.get('Content-Type', '')}
+            # Parse the form data (stdlib multipart parser — cgi.FieldStorage
+            # was removed in Python 3.13; we hand-parse the one "file" field).
+            try:
+                content_length = int(self.headers.get('Content-Length', '0'))
+            except (TypeError, ValueError):
+                content_length = 0
+            content_type = self.headers.get('Content-Type', '')
+
+            orig_name, file_stream = _parse_multipart_file_upload(
+                self.rfile, content_type, content_length
             )
 
-            # Validate presence of file field
-            if 'file' not in form:
+            if file_stream is None or not orig_name:
                 self.send_response(400)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "No file field provided"}).encode())
                 return
 
-            fileitem = form['file']
-
-            if not getattr(fileitem, 'filename', None):
-                self.send_response(400)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "No file uploaded"}).encode())
-                return
-
             # Enforce .map extension
-            orig_name = fileitem.filename
             base, ext = os.path.splitext(orig_name)
             if ext.lower() != '.map':
                 self.send_response(400)
@@ -488,11 +546,11 @@ class MapServerHandler(SimpleHTTPRequestHandler):
                 try:
                     with open(final_path, 'wb') as f:
                         # Reset file pointer for retries
-                        fileitem.file.seek(0)
+                        file_stream.seek(0)
                         total_written = 0
                         
                         while True:
-                            chunk = fileitem.file.read(1024 * 1024)
+                            chunk = file_stream.read(1024 * 1024)
                             if not chunk:
                                 break
                             total_written += len(chunk)
