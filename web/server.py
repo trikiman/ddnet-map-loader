@@ -21,6 +21,21 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
+# Fast-start HTTPServer: the default server_bind() calls socket.getfqdn(),
+# which can block for 10+ seconds on machines with no reverse-DNS for the
+# local hostname. We don't use server_name anywhere meaningful, so skip it.
+class FastHTTPServer(HTTPServer):
+    def server_bind(self):
+        # Parent chain: TCPServer.server_bind binds the socket, then
+        # BaseHTTPServer.server_bind sets server_name / server_port via getfqdn.
+        # Skip the getfqdn step; set server_name from the raw host.
+        import socketserver
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.socket.getsockname()[:2]
+        self.server_name = host or "localhost"
+        self.server_port = port
+
+
 # ---------------------------------------------------------------------------
 # Minimal multipart/form-data parser (stdlib only).
 #
@@ -993,7 +1008,7 @@ def run_server():
     
     # Bind to all interfaces
     server_address = ('0.0.0.0', 8299)
-    httpd = HTTPServer(server_address, MapServerHandler)
+    httpd = FastHTTPServer(server_address, MapServerHandler)
     
     local_ip = get_local_ip()
     print(f'\nServer running on:')
@@ -1068,7 +1083,7 @@ if __name__ == '__main__':
             # in the foreground without tray icon or console-hiding side effects.
             os.chdir(os.path.dirname(os.path.abspath(__file__)))
             server_address = ('0.0.0.0', 8299)
-            httpd = HTTPServer(server_address, MapServerHandler)
+            httpd = FastHTTPServer(server_address, MapServerHandler)
             print(f"[no-tray] Serving on http://localhost:{server_address[1]}")
             try:
                 httpd.serve_forever()
