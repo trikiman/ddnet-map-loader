@@ -1052,6 +1052,16 @@ def run_server():
         httpd.shutdown()
 
 if __name__ == '__main__':
+    # pythonw.exe (the shortcut uses this) detaches stdout/stderr to None,
+    # so every `print()` in the request handlers crashes with
+    # "'NoneType' object has no attribute 'write'" and the HTTP handler
+    # silently dies mid-request. Swap to /dev/null-like sinks so prints
+    # are harmless no-ops.
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, 'w', encoding='utf-8', errors='replace')
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, 'w', encoding='utf-8', errors='replace')
+
     # Always log crashes to a file so we can diagnose "tray flashes and dies" issues.
     # Runs regardless of --no-tray mode.
     import traceback
