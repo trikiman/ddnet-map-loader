@@ -1,0 +1,10 @@
+{
+  "log_modified_by_runs": true,
+  "native_exe_exists": true,
+  "native_exe_size": 491520,
+  "official_exit_code": 0,
+  "testing_exit_code": 1,
+  "testingmaps_count_after_testing_attempt": 46,
+  "testingmaps_intact": true,
+  "trig_03_ok": true
+}

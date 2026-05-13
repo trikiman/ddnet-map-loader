@@ -1,0 +1,7 @@
+{
+  "debounce_seconds": 60,
+  "enforcement": "auto_sync_debounce_allows() in ddnet_control.cpp",
+  "marker_exists_after_cli_runs": false,
+  "marker_path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types\\.ddnetcontrol-last-auto-sync",
+  "semantics": "trigger_background_testing_sync_if_due() checks marker mtime. If age < AUTO_SYNC_DEBOUNCE_SEC, returns immediately without spawning the sync. Otherwise touches the marker and spawns a detached testing-only sync process."
+}

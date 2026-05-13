@@ -150,6 +150,7 @@ bool verify_permissions(const std::string& path);
 bool is_sync_types_command(int argc, char* argv[]);
 std::string get_sync_types_mode(int argc, char* argv[]);
 int run_sync_types_command(int argc, char* argv[]);
+void trigger_background_testing_sync_if_due();
 
 bool send_command(SOCKET sock, const std::string& command);
 bool receive_responses(SOCKET sock, std::vector<std::string>& responses, int timeoutMs);
@@ -1251,9 +1252,11 @@ int run_sync_types_command(int argc, char* argv[]) {
     const std::string mode = get_sync_types_mode(argc, argv);
     const std::wstring quoted_script = L"\"" + script_path.wstring() + L"\"";
     const std::wstring quoted_mode = std::wstring(mode.begin(), mode.end());
-    const std::wstring script_args = quoted_script + L" --mode " + quoted_mode;
+    // --register-with-server runs Phase 2's storage.cfg install + record_maps
+    // INSERT OR IGNORE after a successful sync. Safe: no DELETE / UPDATE, rolling backup kept.
+    const std::wstring script_args = quoted_script + L" --mode " + quoted_mode + L" --register-with-server";
 
-    Logger::log(Logger::INFO, "Starting type/testing map sync (" + mode + ")");
+    Logger::log(Logger::INFO, "Starting type/testing map sync (" + mode + ", register-with-server=on)");
 
     if (fs::exists(venv_python)) {
         int exit_code = run_hidden_process(venv_python.wstring(), script_args, working_dir);
@@ -1274,6 +1277,109 @@ int run_sync_types_command(int argc, char* argv[]) {
     exit_code = run_hidden_process(L"cmd.exe", L"/c python " + script_args, working_dir);
     Logger::log(exit_code == 0 ? Logger::INFO : Logger::ERROR, "Sync process exited with code " + std::to_string(exit_code));
     return exit_code == -1 ? 1 : exit_code;
+}
+
+// ---------------------------------------------------------------------------
+// TRIG-04 / SAFE-06: auto-trigger testing-only sync after RCON map change.
+//
+// Fires a background `python tools/map_sync.py --mode testing --register-with-server`
+// in a detached process so the map-change call site doesn't block on the sync.
+//
+// Debounced via a file marker %APPDATA%\DDNet\types\.ddnetcontrol-last-auto-sync:
+// if the marker was touched within AUTO_SYNC_DEBOUNCE_SEC, this call is a no-op.
+// Rapid-fire map changes therefore coalesce into one sync.
+// ---------------------------------------------------------------------------
+constexpr int AUTO_SYNC_DEBOUNCE_SEC = 60;
+
+static fs::path auto_sync_marker_path() {
+    const wchar_t* appdata = _wgetenv(L"APPDATA");
+    if (!appdata) return {};
+    return fs::path(appdata) / L"DDNet" / L"types" / L".ddnetcontrol-last-auto-sync";
+}
+
+static bool auto_sync_debounce_allows() {
+    fs::path marker = auto_sync_marker_path();
+    if (marker.empty()) return false;
+    std::error_code ec;
+    if (!fs::exists(marker, ec)) return true;
+    auto last = fs::last_write_time(marker, ec);
+    if (ec) return true;  // if we can't read the time, allow the sync
+    auto now = decltype(last)::clock::now();
+    auto age = std::chrono::duration_cast<std::chrono::seconds>(now - last).count();
+    return age >= AUTO_SYNC_DEBOUNCE_SEC;
+}
+
+static void auto_sync_touch_marker() {
+    fs::path marker = auto_sync_marker_path();
+    if (marker.empty()) return;
+    std::error_code ec;
+    fs::create_directories(marker.parent_path(), ec);
+    std::ofstream(marker) << "last auto-sync trigger\n";
+}
+
+// Fire-and-forget testing-only sync. Non-blocking: spawns a detached child
+// process and returns. The child picks the same venv/system-python fallback
+// as run_sync_types_command, and uses --register-with-server so Phase 2's
+// safety-rail-protected DB writes fire after the sync.
+void trigger_background_testing_sync_if_due() {
+    if (!auto_sync_debounce_allows()) {
+        Logger::log(Logger::INFO, "Auto-sync skipped (debounce — last run <" + std::to_string(AUTO_SYNC_DEBOUNCE_SEC) + "s ago)");
+        return;
+    }
+    auto_sync_touch_marker();
+
+    wchar_t exe_path[MAX_PATH] = {0};
+    DWORD len = GetModuleFileNameW(NULL, exe_path, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) {
+        Logger::log(Logger::WARNING, "Auto-sync: GetModuleFileNameW failed; skipping");
+        return;
+    }
+    fs::path exe_dir = fs::path(exe_path).parent_path();
+    fs::path script_path = exe_dir / "tools" / "map_sync.py";
+    fs::path venv_python = exe_dir / "venv" / "Scripts" / "python.exe";
+    if (!fs::exists(script_path)) {
+        Logger::log(Logger::WARNING, "Auto-sync: script missing at " + script_path.string() + "; skipping");
+        return;
+    }
+
+    std::wstring quoted_script = L"\"" + script_path.wstring() + L"\"";
+    std::wstring args = quoted_script + L" --mode testing --register-with-server";
+    std::wstring working_dir = exe_dir.wstring();
+
+    // Build a command that tries venv -> py -3 -> python, same order as run_sync_types_command.
+    // We wrap in cmd /c so we can chain with || (fallback).
+    std::wstring command;
+    if (fs::exists(venv_python)) {
+        command = L"cmd.exe /c \"\"" + venv_python.wstring() + L"\" " + args + L" || py -3 " + args + L" || python " + args + L"\"";
+    } else {
+        command = L"cmd.exe /c \"py -3 " + args + L" || python " + args + L"\"";
+    }
+
+    STARTUPINFOW si{};
+    PROCESS_INFORMATION pi{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    std::wstring mutable_cmd = command;
+    DWORD flags = CREATE_NO_WINDOW | DETACHED_PROCESS;
+    BOOL ok = CreateProcessW(
+        nullptr,
+        mutable_cmd.data(),
+        nullptr, nullptr, FALSE,
+        flags,
+        nullptr,
+        working_dir.c_str(),
+        &si, &pi
+    );
+    if (!ok) {
+        Logger::log(Logger::WARNING, "Auto-sync: CreateProcessW failed (" + std::to_string(GetLastError()) + "); skipping");
+        return;
+    }
+    // Don't wait. Don't block the map-change flow.
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    Logger::log(Logger::INFO, "Auto-sync: background testing sync started");
 }
 
 // New functions for file association and permission checks
@@ -1529,6 +1635,9 @@ bool handle_map_replacement(SOCKET sock, const std::string& map_path, bool skip_
             return false;
         }
         Logger::log(Logger::INFO, "Map replacement completed successfully");
+
+        // TRIG-04: auto-trigger testing-only sync after RCON map change (debounced)
+        trigger_background_testing_sync_if_due();
 
         return true;
     }

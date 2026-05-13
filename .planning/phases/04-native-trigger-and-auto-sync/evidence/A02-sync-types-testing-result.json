@@ -1,0 +1,6 @@
+{
+  "exit_code": 1,
+  "new_log_lines": "[Wed May 13 03:18:42 2026] [INFO] Starting DDNet Map Control (silent mode)\n[Wed May 13 03:18:42 2026] [INFO] Starting type/testing map sync (testing, register-with-server=on)\n[Wed May 13 03:18:42 2026] [WARNING] venv python sync launch failed with code 103, falling back to system python\n[Wed May 13 03:18:47 2026] [WARNING] py -3 sync launch failed with code 1, falling back to python\n[Wed May 13 03:18:52 2026] [ERROR] Sync process exited with code 1\n",
+  "stderr_excerpt": "",
+  "stdout_excerpt": ""
+}

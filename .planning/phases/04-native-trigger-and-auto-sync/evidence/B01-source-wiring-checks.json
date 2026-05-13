@@ -1,0 +1,8 @@
+{
+  "debounce_marker_path_defined": true,
+  "debounce_seconds_constant_defined": true,
+  "register_with_server_passed_to_cli_flags": true,
+  "register_with_server_passed_to_testing_sync": true,
+  "trigger_called_from_handle_map_replacement": true,
+  "trigger_fn_defined": true
+}
