@@ -1,0 +1,17 @@
+{
+  "body": {
+    "counts": null,
+    "error": null,
+    "finishedAt": null,
+    "logs": [],
+    "message": "Idle",
+    "mode": null,
+    "progress": null,
+    "running": false,
+    "stage": "idle",
+    "startedAt": null,
+    "success": null,
+    "summary": null
+  },
+  "http_code": 200
+}

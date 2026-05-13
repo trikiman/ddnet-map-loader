@@ -1,0 +1,35 @@
+{
+  "counts": null,
+  "error": "Testing sync aborted \u2014 1 URL(s) unreachable: Evening_Mist.map (HEAD HTTPError 404)",
+  "finishedAt": 1778631135993,
+  "logs": [
+    {
+      "message": "Queued testing sync",
+      "timestamp": 1778631130802
+    },
+    {
+      "message": "[testing] Fetching testing map list",
+      "timestamp": 1778631130828
+    },
+    {
+      "message": "[testing] Pre-validating 55 testing URL(s)",
+      "timestamp": 1778631131498
+    },
+    {
+      "message": "[testing] Aborting: 1 testing URL(s) unreachable",
+      "timestamp": 1778631135993
+    },
+    {
+      "message": "Sync failed: Testing sync aborted \u2014 1 URL(s) unreachable: Evening_Mist.map (HEAD HTTPError 404)",
+      "timestamp": 1778631135993
+    }
+  ],
+  "message": "Sync failed",
+  "mode": "testing",
+  "progress": null,
+  "running": false,
+  "stage": "error",
+  "startedAt": 1778631130802,
+  "success": false,
+  "summary": null
+}

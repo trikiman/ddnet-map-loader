@@ -1,0 +1,159 @@
+{
+  "count": 3,
+  "transitions": [
+    {
+      "at": "2026-05-13T00:12:08Z",
+      "state": {
+        "counts": null,
+        "error": null,
+        "finishedAt": null,
+        "logs": [
+          {
+            "message": "Queued official sync",
+            "timestamp": 1778631128774
+          }
+        ],
+        "message": "Starting official sync",
+        "mode": "official",
+        "progress": null,
+        "running": true,
+        "stage": "queued",
+        "startedAt": 1778631128774,
+        "success": null,
+        "summary": null
+      }
+    },
+    {
+      "at": "2026-05-13T00:12:09Z",
+      "state": {
+        "counts": null,
+        "error": null,
+        "finishedAt": null,
+        "logs": [
+          {
+            "message": "Queued official sync",
+            "timestamp": 1778631128774
+          },
+          {
+            "message": "[official] Fetching upstream official types tree",
+            "timestamp": 1778631128785
+          }
+        ],
+        "message": "Fetching upstream official types tree",
+        "mode": "official",
+        "progress": null,
+        "running": true,
+        "stage": "official",
+        "startedAt": 1778631128774,
+        "success": null,
+        "summary": null
+      }
+    },
+    {
+      "at": "2026-05-13T00:12:09Z",
+      "state": {
+        "counts": null,
+        "error": null,
+        "finishedAt": 1778631129701,
+        "logs": [
+          {
+            "message": "Queued official sync",
+            "timestamp": 1778631128774
+          },
+          {
+            "message": "[official] Fetching upstream official types tree",
+            "timestamp": 1778631128785
+          },
+          {
+            "message": "[official] Prepared official sync plan",
+            "timestamp": 1778631129544
+          },
+          {
+            "message": "[storage_cfg] C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\storage.cfg already has 'add_path $USERDIR/types', no-op",
+            "timestamp": 1778631129560
+          },
+          {
+            "message": "[record_maps] DB snapshot: C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\.ddnetcontrol-server-backup-20260513T001209Z.sqlite",
+            "timestamp": 1778631129694
+          },
+          {
+            "message": "[record_maps] record_maps: +0 new rows, 2454 preserved, 4 dupes skipped",
+            "timestamp": 1778631129700
+          },
+          {
+            "message": "Sync completed successfully",
+            "timestamp": 1778631129701
+          }
+        ],
+        "message": "Sync completed",
+        "mode": "official",
+        "progress": null,
+        "running": false,
+        "stage": "done",
+        "startedAt": 1778631128774,
+        "success": true,
+        "summary": {
+          "ddnet_root": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet",
+          "dry_run": false,
+          "finished_at": "2026-05-13T00:12:09Z",
+          "lock_file": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types\\.ddnetcontrol-sync.lock",
+          "mode": "official",
+          "official": {
+            "created": 0,
+            "downloaded_bytes": 0,
+            "dry_run": false,
+            "orphaned_local_files": 0,
+            "remote_file_count": 2468,
+            "remote_total_bytes": 1086272160,
+            "skipped": 2468,
+            "updated": 0
+          },
+          "register_with_server": true,
+          "server_register": {
+            "record_maps": {
+              "action": "ok",
+              "backup_path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\.ddnetcontrol-server-backup-20260513T001209Z.sqlite",
+              "manifest_size": 2458,
+              "other_table_counts": {
+                "post": {
+                  "record_points": 21,
+                  "record_race": 44,
+                  "record_race_backup": 0,
+                  "record_saves": 0,
+                  "record_saves_backup": 0,
+                  "record_teamrace": 0,
+                  "record_teamrace_backup": 0
+                },
+                "pre": {
+                  "record_points": 21,
+                  "record_race": 44,
+                  "record_race_backup": 0,
+                  "record_saves": 0,
+                  "record_saves_backup": 0,
+                  "record_teamrace": 0,
+                  "record_teamrace_backup": 0
+                }
+              },
+              "other_table_counts_unchanged": true,
+              "path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\ddnet-server.sqlite",
+              "record_maps_count_post": 3438,
+              "record_maps_count_pre": 3438,
+              "rows_already_present": 2454,
+              "rows_inserted": 0,
+              "rows_skipped_duplicate_stem": 4
+            },
+            "storage_cfg": {
+              "action": "no-op",
+              "backup_path": null,
+              "path": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\storage.cfg"
+            }
+          },
+          "started_at": "2026-05-13T00:12:08Z",
+          "state_file": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types\\.ddnetcontrol-sync-state.json",
+          "success": true,
+          "types_root": "C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\types"
+        }
+      }
+    }
+  ]
+}

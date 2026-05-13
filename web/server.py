@@ -80,7 +80,7 @@ def run_sync_job(mode: str) -> None:
         )
 
     try:
-        summary = sync_ddnet_maps(mode=mode, callback=on_progress)
+        summary = sync_ddnet_maps(mode=mode, callback=on_progress, register_with_server=True)
         append_sync_log("Sync completed successfully")
         set_sync_status(
             running=False,
@@ -964,4 +964,16 @@ def run_server():
     icon.run()
 
 if __name__ == '__main__':
-    run_server()
+    if os.environ.get("DDNETCONTROL_NO_TRAY") == "1":
+        # Headless mode for automated verification. Runs the HTTP server
+        # in the foreground without tray icon or console-hiding side effects.
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        server_address = ('0.0.0.0', 8299)
+        httpd = HTTPServer(server_address, MapServerHandler)
+        print(f"[no-tray] Serving on http://localhost:{server_address[1]}")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
+    else:
+        run_server()

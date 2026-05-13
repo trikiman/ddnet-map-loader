@@ -1,0 +1,22 @@
+{
+  "body": {
+    "counts": null,
+    "error": null,
+    "finishedAt": null,
+    "logs": [
+      {
+        "message": "Queued official sync",
+        "timestamp": 1778631128774
+      }
+    ],
+    "message": "Starting official sync",
+    "mode": "official",
+    "progress": null,
+    "running": true,
+    "stage": "queued",
+    "startedAt": 1778631128774,
+    "success": null,
+    "summary": null
+  },
+  "http_code": 202
+}

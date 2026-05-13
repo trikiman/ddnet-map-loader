@@ -1,0 +1,29 @@
+{
+  "first_http": 202,
+  "lock_returned_409": true,
+  "ok": true,
+  "second_body": {
+    "counts": null,
+    "error": null,
+    "finishedAt": null,
+    "logs": [
+      {
+        "message": "Queued official sync",
+        "timestamp": 1778631136393
+      },
+      {
+        "message": "[official] Fetching upstream official types tree",
+        "timestamp": 1778631136403
+      }
+    ],
+    "message": "Fetching upstream official types tree",
+    "mode": "official",
+    "progress": null,
+    "running": true,
+    "stage": "official",
+    "startedAt": 1778631136393,
+    "success": null,
+    "summary": null
+  },
+  "second_http": 409
+}

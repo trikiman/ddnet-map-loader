@@ -1,0 +1,22 @@
+{
+  "body": {
+    "counts": null,
+    "error": null,
+    "finishedAt": null,
+    "logs": [
+      {
+        "message": "Queued testing sync",
+        "timestamp": 1778631130802
+      }
+    ],
+    "message": "Starting testing sync",
+    "mode": "testing",
+    "progress": null,
+    "running": true,
+    "stage": "queued",
+    "startedAt": 1778631130802,
+    "success": null,
+    "summary": null
+  },
+  "http_code": 202
+}

@@ -1,0 +1,7 @@
+{
+  "body": {
+    "error": "Invalid sync mode: bogus"
+  },
+  "http_code": 400,
+  "ok_4xx_rejection": true
+}
