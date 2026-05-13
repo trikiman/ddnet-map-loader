@@ -964,16 +964,45 @@ def run_server():
     icon.run()
 
 if __name__ == '__main__':
-    if os.environ.get("DDNETCONTROL_NO_TRAY") == "1":
-        # Headless mode for automated verification. Runs the HTTP server
-        # in the foreground without tray icon or console-hiding side effects.
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        server_address = ('0.0.0.0', 8299)
-        httpd = HTTPServer(server_address, MapServerHandler)
-        print(f"[no-tray] Serving on http://localhost:{server_address[1]}")
+    # Always log crashes to a file so we can diagnose "tray flashes and dies" issues.
+    # Runs regardless of --no-tray mode.
+    import traceback
+    CRASH_LOG = os.path.join(os.environ.get("APPDATA", os.path.dirname(__file__)),
+                             "DDNet", "maps", "map-manager-crash.log")
+    try:
+        os.makedirs(os.path.dirname(CRASH_LOG), exist_ok=True)
+    except Exception:
+        CRASH_LOG = os.path.join(os.path.dirname(__file__), "map-manager-crash.log")
+
+    def _record_crash(exc_type, exc_value, exc_tb):
         try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
+            with open(CRASH_LOG, "a", encoding="utf-8") as fh:
+                fh.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+                traceback.print_exception(exc_type, exc_value, exc_tb, file=fh)
+        except Exception:
             pass
-    else:
-        run_server()
+
+    # Hook both thread-level and main-thread exceptions
+    sys.excepthook = _record_crash
+    try:
+        threading.excepthook = lambda args: _record_crash(args.exc_type, args.exc_value, args.exc_traceback)
+    except Exception:
+        pass
+
+    try:
+        if os.environ.get("DDNETCONTROL_NO_TRAY") == "1":
+            # Headless mode for automated verification. Runs the HTTP server
+            # in the foreground without tray icon or console-hiding side effects.
+            os.chdir(os.path.dirname(os.path.abspath(__file__)))
+            server_address = ('0.0.0.0', 8299)
+            httpd = HTTPServer(server_address, MapServerHandler)
+            print(f"[no-tray] Serving on http://localhost:{server_address[1]}")
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                pass
+        else:
+            run_server()
+    except BaseException:
+        _record_crash(*sys.exc_info())
+        raise
