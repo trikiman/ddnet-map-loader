@@ -61,10 +61,17 @@ STORAGE_CFG_BASE_LINES = (
     "add_path $DATADIR",
     "add_path $CURRENTDIR",
 )
-# Category order is significant — when truncating to fit MAX_PATHS we keep
-# the earlier entries. Testing maps first, then the playable ddrace types
-# in order of community popularity.
+# Combined-maps category. We hardlink every .map from every other category
+# into types/_all/maps/<stem>.map and only emit one add_path for it. That
+# sidesteps DDNet's MAX_PATHS=16 limit and lets every synced map load
+# regardless of source category.
+COMBINED_CATEGORY = "_all"
+# Order matters when truncating to fit MAX_PATHS, but with the combined
+# strategy we typically only emit one entry. Per-category fallbacks remain
+# in the list so callers that opt out of the combined dir (or run on an
+# install where hardlinks fail) still get coverage.
 STORAGE_CFG_CATEGORIES = (
+    COMBINED_CATEGORY,
     "testingmaps",
     "novice", "moderate", "brutal", "insane",
     "oldschool", "solo", "race",
@@ -76,33 +83,180 @@ STORAGE_CFG_CATEGORIES = (
 
 def _build_storage_cfg_target_lines(ddnet_root: Path) -> list[str]:
     """Return the list of `add_path ...` lines for the given DDNet root,
-    truncated to DDNET_MAX_PATHS - len(BASE_LINES) entries and filtered to
-    categories whose directory actually exists."""
+    truncated to DDNET_MAX_PATHS - len(BASE_LINES) entries.
+
+    When `types/_all/maps/` exists and is non-empty, we use only it — that
+    one path covers every map across every category and lets us stay well
+    under DDNet's MAX_PATHS=16 limit. Otherwise we fall back to per-category
+    add_paths (also truncated to fit MAX_PATHS).
+    """
     types_root = ddnet_root / "types"
     max_categories = DDNET_MAX_PATHS - len(STORAGE_CFG_BASE_LINES)
+
+    combined_dir = types_root / COMBINED_CATEGORY / "maps"
+    if combined_dir.is_dir() and any(combined_dir.glob("*.map")):
+        return [f"add_path {(types_root / COMBINED_CATEGORY).as_posix()}"]
+
     lines: list[str] = []
     for cat in STORAGE_CFG_CATEGORIES:
+        if cat == COMBINED_CATEGORY:
+            continue
         if len(lines) >= max_categories:
             break
         cat_dir = types_root / cat
         if cat_dir.is_dir():
-            # DDNet accepts forward slashes on all platforms; as_posix()
-            # normalizes Windows backslashes.
             lines.append(f"add_path {cat_dir.as_posix()}")
     return lines
 
 
-def _build_storage_cfg_content(ddnet_root: Path) -> str:
-    header = (
-        "####\n"
-        "# Written by ddnetcontrol.\n"
-        "# DDNet's Storage AddPath requires $USERDIR/$DATADIR/$CURRENTDIR as\n"
-        "# STANDALONE tokens, not prefixes. Use absolute paths for per-category\n"
-        "# maps. MAX_PATHS is 16, so at most 13 category entries fit.\n"
-        "####\n\n"
+def rebuild_combined_maps_dir(
+    types_root: Path,
+    callback: ProgressCallback | None = None,
+) -> dict[str, Any]:
+    """Rebuild `types/_all/maps/` so it contains a hardlink (or copy fallback)
+    of every .map file from every other category under `types/<cat>/maps/`.
+
+    This lets a single `add_path .../types/_all` line in storage.cfg cover
+    every map regardless of source category, sidestepping DDNet's hardcoded
+    MAX_PATHS=16 limit.
+
+    Idempotent: existing hardlinks are kept when their inode already matches
+    the source. Stale combined entries (whose source disappeared) are
+    removed. When two categories share a map stem, the alphabetically first
+    category wins (deterministic).
+    """
+    combined_root = types_root / COMBINED_CATEGORY
+    combined_dir = combined_root / "maps"
+
+    if not types_root.exists():
+        return {"action": "skipped-no-types", "linked": 0, "skipped": 0, "removed": 0, "total": 0}
+
+    combined_dir.mkdir(parents=True, exist_ok=True)
+
+    # Enumerate every <category>/maps/<stem>.map under types/
+    sources: dict[str, Path] = {}
+    for entry in sorted(types_root.rglob("*.map")):
+        if not entry.is_file():
+            continue
+        rel = entry.relative_to(types_root)
+        parts = rel.parts
+        if len(parts) < 3 or parts[1] != "maps":
+            continue
+        category = parts[0]
+        # Skip our own combined dir and any hidden/state dirs.
+        if category == COMBINED_CATEGORY or category.startswith("."):
+            continue
+        # Dedupe by stem: first category wins (rglob+sorted gives stable order).
+        if entry.stem in sources:
+            continue
+        sources[entry.stem] = entry
+
+    existing = {p.stem: p for p in combined_dir.glob("*.map") if p.is_file()}
+
+    linked = 0
+    skipped_unchanged = 0
+    refreshed = 0
+    fallback_copied = 0
+    removed = 0
+
+    for stem, src in sources.items():
+        dst = combined_dir / f"{stem}.map"
+        if dst.exists():
+            # Same inode? Hardlink already current — leave it alone.
+            try:
+                if dst.stat().st_ino == src.stat().st_ino and dst.stat().st_dev == src.stat().st_dev:
+                    skipped_unchanged += 1
+                    continue
+            except OSError:
+                pass
+            # Stale link or copy — drop and recreate.
+            try:
+                dst.unlink()
+            except OSError:
+                continue
+            refreshed += 1
+        try:
+            os.link(src, dst)
+            linked += 1
+        except OSError:
+            # Cross-volume or filesystem refused hardlinks — fall back to copy.
+            try:
+                shutil.copy2(src, dst)
+                fallback_copied += 1
+                linked += 1
+            except OSError:
+                pass
+
+    # Drop orphans whose source no longer exists.
+    source_stems = set(sources)
+    for stem, path in existing.items():
+        if stem not in source_stems:
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                pass
+
+    summary = {
+        "action": "ok",
+        "combined_dir": str(combined_dir),
+        "total_sources": len(sources),
+        "linked": linked,
+        "skipped_unchanged": skipped_unchanged,
+        "refreshed": refreshed,
+        "fallback_copied": fallback_copied,
+        "removed": removed,
+    }
+    _emit(
+        callback,
+        stage="combined_maps",
+        message=(
+            f"Combined dir: {linked} linked ({fallback_copied} via copy fallback), "
+            f"{skipped_unchanged} unchanged, {removed} orphans removed; "
+            f"{len(sources)} maps total"
+        ),
+        counts={
+            "linked": linked,
+            "unchanged": skipped_unchanged,
+            "removed": removed,
+            "total": len(sources),
+        },
     )
-    lines = list(STORAGE_CFG_BASE_LINES) + _build_storage_cfg_target_lines(ddnet_root)
+    return summary
+
+
+def _build_storage_cfg_content(ddnet_root: Path) -> str:
+    target_lines = _build_storage_cfg_target_lines(ddnet_root)
+    using_combined = (
+        len(target_lines) == 1
+        and target_lines[0].endswith(f"/types/{COMBINED_CATEGORY}")
+    )
+    if using_combined:
+        header = (
+            "####\n"
+            "# Written by ddnetcontrol.\n"
+            "# Single combined-maps add_path covers every category by way of\n"
+            "# hardlinks (or copies) under types/_all/maps/. Stays well under\n"
+            "# DDNet's MAX_PATHS=16 limit.\n"
+            "####\n\n"
+        )
+    else:
+        header = (
+            "####\n"
+            "# Written by ddnetcontrol.\n"
+            "# DDNet's Storage AddPath requires $USERDIR/$DATADIR/$CURRENTDIR as\n"
+            "# STANDALONE tokens, not prefixes. Use absolute paths for per-category\n"
+            "# maps. MAX_PATHS is 16, so at most 13 category entries fit.\n"
+            "####\n\n"
+        )
+    lines = list(STORAGE_CFG_BASE_LINES) + target_lines
     return header + "\n".join(lines) + "\n"
+
+
+# Recognized header prefix for files we previously wrote — when we see this
+# in an existing storage.cfg we know it's safe to rewrite to canonical form.
+_DDNETCONTROL_HEADER_MARKER = "# Written by ddnetcontrol"
+_DDNETCONTROL_LEGACY_HEADER_MARKER = "# Rewritten by ddnetcontrol"
 
 RECORD_MAPS_TABLE = "record_maps"
 SERVER_DB_FILENAME = "ddnet-server.sqlite"
@@ -196,6 +350,25 @@ def ensure_storage_cfg(
         }
 
     existing = cfg_path.read_text(encoding="utf-8")
+    is_ours = (
+        _DDNETCONTROL_HEADER_MARKER in existing
+        or _DDNETCONTROL_LEGACY_HEADER_MARKER in existing
+    )
+    expected_content = _build_storage_cfg_content(ddnet_root)
+    if is_ours and existing != expected_content:
+        # Rewrite to canonical form (handles cases like switching from per-
+        # category mode to combined mode after _all/maps/ gets populated).
+        if not backup_path.exists():
+            shutil.copy2(cfg_path, backup_path)
+        _atomic_write_text(cfg_path, expected_content)
+        _emit(callback, stage="storage_cfg",
+              message=f"Rewrote {cfg_path} to canonical form ({len(target_lines)} category line(s))")
+        return {
+            "action": "rewritten",
+            "path": str(cfg_path),
+            "backup_path": str(backup_path),
+            "added_lines": target_lines,
+        }
     missing = _missing_target_lines(existing, target_lines)
     if not missing:
         _emit(callback, stage="storage_cfg",
@@ -500,9 +673,14 @@ def register_with_server(
     storage_cfg_path: Path | None = None,
 ) -> dict[str, Any]:
     """Convenience combiner used by sync_ddnet_maps when register_with_server=True."""
+    combined_summary = rebuild_combined_maps_dir(ddnet_root / "types", callback=callback)
     cfg_summary = ensure_storage_cfg(ddnet_root, callback=callback, storage_cfg_path=storage_cfg_path)
     db_summary = register_maps_in_db(ddnet_root, manifest=None, callback=callback)
-    return {"storage_cfg": cfg_summary, "record_maps": db_summary}
+    return {
+        "combined_maps": combined_summary,
+        "storage_cfg": cfg_summary,
+        "record_maps": db_summary,
+    }
 
 
 # ---------------------------------------------------------------------------
