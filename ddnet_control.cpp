@@ -13,10 +13,12 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <tlhelp32.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <objbase.h>
+#include <cctype>
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "shell32.lib")
@@ -361,9 +363,239 @@ bool receive_responses(SOCKET sock, std::vector<std::string>& responses, int tim
     return !responses.empty();
 }
 
+// === Econ password resolution =============================================
+// `ddnet_control.exe` connects to the DDNet server's external console (econ)
+// over TCP on `ec_port`. The password it sends is therefore `ec_password`,
+// not `sv_rcon_password` (which is the in-game F2 RCON, a different channel).
+//
+// Resolution order (first non-empty wins):
+//   1. DDNETCONTROL_ECON_PASSWORD environment variable
+//   2. `econ_password=...` in `ddnet_control.cfg` next to the EXE
+//   3. `%APPDATA%\DDNet\autoexec_server.cfg` (USERDIR autoexec — overrides
+//      anything set in myServerConfig.cfg via `exec` chain)
+//   4. running DDNet-Server.exe `data/myServerConfig.cfg`
+//   5. running DDNet-Server.exe `data/autoexec_server.cfg`
+//   6. Hardcoded fallback "test123" (with a WARNING log)
+//
+// Within a single file, the LAST `ec_password` line wins, matching DDNet's
+// own "later command overrides" semantics.
+//
+// The chosen source (never the password value itself) is logged once per
+// process invocation.
+
+static std::string read_file_to_string(const std::wstring& path) {
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs) return std::string();
+    std::ostringstream ss;
+    ss << ifs.rdbuf();
+    return ss.str();
+}
+
+// Find the LAST `ec_password "value"` (or unquoted) line in a DDNet cfg file.
+// Returns empty if absent. Comment-aware (`#`, `//`).
+static std::string parse_last_ec_password(const std::wstring& cfg_path) {
+    std::string content = read_file_to_string(cfg_path);
+    if (content.empty()) return std::string();
+    std::istringstream is(content);
+    std::string line;
+    const std::string key = "ec_password";
+    std::string last_value;
+    while (std::getline(is, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        size_t first = line.find_first_not_of(" \t");
+        if (first == std::string::npos) continue;
+        if (line[first] == '#') continue;
+        if (line[first] == '/' && first + 1 < line.size() && line[first + 1] == '/') continue;
+        size_t kp = line.find(key, first);
+        if (kp == std::string::npos) continue;
+        // Word-boundary check on the left
+        if (kp > 0) {
+            unsigned char prev = static_cast<unsigned char>(line[kp - 1]);
+            if (std::isalnum(prev) || prev == '_') continue;
+        }
+        size_t after = kp + key.size();
+        // Require whitespace immediately after the key (avoids matching e.g. `ec_password_alt`)
+        if (after >= line.size() || (line[after] != ' ' && line[after] != '\t')) continue;
+        while (after < line.size() && (line[after] == ' ' || line[after] == '\t')) ++after;
+        if (after >= line.size()) continue;
+        if (line[after] == '"') {
+            size_t end = line.find('"', after + 1);
+            if (end != std::string::npos) {
+                last_value = line.substr(after + 1, end - after - 1);
+            }
+        } else {
+            size_t end = line.find_first_of(" \t", after);
+            if (end == std::string::npos) end = line.size();
+            last_value = line.substr(after, end - after);
+        }
+    }
+    return last_value;
+}
+
+// Find the directory of a running `DDNet-Server.exe` (if any). Empty otherwise.
+static std::wstring find_running_ddnet_server_dir() {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return std::wstring();
+    PROCESSENTRY32W pe{};
+    pe.dwSize = sizeof(pe);
+    std::wstring result;
+    if (Process32FirstW(snap, &pe)) {
+        do {
+            if (_wcsicmp(pe.szExeFile, L"DDNet-Server.exe") == 0) {
+                HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
+                if (proc) {
+                    wchar_t buf[MAX_PATH] = {};
+                    DWORD size = MAX_PATH;
+                    if (QueryFullProcessImageNameW(proc, 0, buf, &size)) {
+                        std::wstring full(buf);
+                        size_t slash = full.find_last_of(L"\\/");
+                        if (slash != std::wstring::npos) result = full.substr(0, slash);
+                    }
+                    CloseHandle(proc);
+                    if (!result.empty()) break;
+                }
+            }
+        } while (Process32NextW(snap, &pe));
+    }
+    CloseHandle(snap);
+    return result;
+}
+
+// Directory of our own EXE.
+static std::wstring get_own_dir() {
+    wchar_t buf[MAX_PATH] = {};
+    DWORD len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    if (len == 0) return std::wstring();
+    std::wstring full(buf);
+    size_t slash = full.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) return full.substr(0, slash);
+    return std::wstring();
+}
+
+// %APPDATA%\DDNet (DDNet's USERDIR on Windows).
+static std::wstring get_userdir_dir() {
+    wchar_t* appdata = nullptr;
+    HRESULT hr = SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appdata);
+    std::wstring result;
+    if (SUCCEEDED(hr) && appdata) {
+        result.assign(appdata);
+        result += L"\\DDNet";
+    }
+    if (appdata) CoTaskMemFree(appdata);
+    return result;
+}
+
+// Read a `key=value` (or `key = "value"`) entry from a simple cfg file.
+static std::string read_kv_config(const std::wstring& path, const std::string& key) {
+    std::string content = read_file_to_string(path);
+    if (content.empty()) return std::string();
+    std::istringstream is(content);
+    std::string line;
+    while (std::getline(is, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        size_t first = line.find_first_not_of(" \t");
+        if (first == std::string::npos) continue;
+        if (line[first] == '#') continue;
+        if (line[first] == '/' && first + 1 < line.size() && line[first + 1] == '/') continue;
+        size_t eq = line.find('=', first);
+        if (eq == std::string::npos) continue;
+        std::string k = line.substr(first, eq - first);
+        size_t kend = k.find_last_not_of(" \t");
+        if (kend != std::string::npos) k.erase(kend + 1);
+        if (k != key) continue;
+        std::string v = line.substr(eq + 1);
+        size_t vstart = v.find_first_not_of(" \t");
+        v = (vstart == std::string::npos) ? std::string() : v.substr(vstart);
+        size_t vend = v.find_last_not_of(" \t");
+        if (vend != std::string::npos) v.erase(vend + 1);
+        if (v.size() >= 2 && v.front() == '"' && v.back() == '"') v = v.substr(1, v.size() - 2);
+        return v;
+    }
+    return std::string();
+}
+
+static std::string g_econ_password_cache;
+static bool g_econ_password_resolved = false;
+
+static const std::string& resolve_econ_password() {
+    if (g_econ_password_resolved) return g_econ_password_cache;
+    g_econ_password_resolved = true;
+
+    // 1. Environment variable
+    {
+        char buf[512] = {};
+        DWORD got = GetEnvironmentVariableA("DDNETCONTROL_ECON_PASSWORD", buf, (DWORD)sizeof(buf));
+        if (got > 0 && got < sizeof(buf)) {
+            g_econ_password_cache.assign(buf, got);
+            Logger::log(Logger::INFO, "Econ password source: env DDNETCONTROL_ECON_PASSWORD");
+            return g_econ_password_cache;
+        }
+    }
+
+    // 2. ddnet_control.cfg next to the EXE
+    {
+        std::wstring own = get_own_dir();
+        if (!own.empty()) {
+            std::wstring cfg = own + L"\\ddnet_control.cfg";
+            std::string pw = read_kv_config(cfg, "econ_password");
+            if (!pw.empty()) {
+                g_econ_password_cache = pw;
+                Logger::log(Logger::INFO, "Econ password source: ddnet_control.cfg");
+                return g_econ_password_cache;
+            }
+        }
+    }
+
+    // 3. USERDIR autoexec_server.cfg (last `ec_password` line wins).
+    //    DDNet executes this from %APPDATA%\DDNet on startup; any value here
+    //    overrides values set earlier by `exec myServerconfig.cfg`.
+    {
+        std::wstring userdir = get_userdir_dir();
+        if (!userdir.empty()) {
+            std::wstring cfg = userdir + L"\\autoexec_server.cfg";
+            std::string pw = parse_last_ec_password(cfg);
+            if (!pw.empty()) {
+                g_econ_password_cache = pw;
+                Logger::log(Logger::INFO, "Econ password source: %APPDATA%\\DDNet\\autoexec_server.cfg");
+                return g_econ_password_cache;
+            }
+        }
+    }
+
+    // 4 & 5. Auto-detect from the running DDNet-Server.exe install dir.
+    {
+        std::wstring serverDir = find_running_ddnet_server_dir();
+        if (!serverDir.empty()) {
+            std::wstring cfg = serverDir + L"\\data\\myServerConfig.cfg";
+            std::string pw = parse_last_ec_password(cfg);
+            if (!pw.empty()) {
+                g_econ_password_cache = pw;
+                Logger::log(Logger::INFO, "Econ password source: running DDNet-Server.exe data/myServerConfig.cfg");
+                return g_econ_password_cache;
+            }
+            std::wstring cfg2 = serverDir + L"\\data\\autoexec_server.cfg";
+            pw = parse_last_ec_password(cfg2);
+            if (!pw.empty()) {
+                g_econ_password_cache = pw;
+                Logger::log(Logger::INFO, "Econ password source: running DDNet-Server.exe data/autoexec_server.cfg");
+                return g_econ_password_cache;
+            }
+        }
+    }
+
+    // 6. Hardcoded fallback
+    g_econ_password_cache = "test123";
+    Logger::log(Logger::WARNING,
+                "Econ password source: hardcoded fallback (test123). "
+                "Set DDNETCONTROL_ECON_PASSWORD or place ddnet_control.cfg "
+                "(econ_password=...) next to the EXE if your server uses a different password.");
+    return g_econ_password_cache;
+}
+
 bool authenticate(SOCKET sock) {
     // Send password immediately without waiting
-    send_command(sock, "test123\n");
+    const std::string& pw = resolve_econ_password();
+    send_command(sock, pw + "\n");
 
     // Wait for response with shorter timeout
     auto responses = get_responses(sock, 2, 500); // Reduced maxResponses to 2 and timeout to 500ms

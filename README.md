@@ -62,10 +62,33 @@ ie4uinit.exe -ClearIconCache
   ```
   Then update `ddnet_control.rc` to use the fixed icon and rebuild.
 
+## Server connection (econ)
+
+`ddnet_control.exe` talks to the local DDNet server over the **external console (econ)** TCP socket on `127.0.0.1:8303`. It does **not** use the in-game RCON channel — `sv_rcon_password` is irrelevant here. The password it sends is `ec_password`.
+
+The password is resolved at runtime, in this order (first non-empty wins):
+
+1. `DDNETCONTROL_ECON_PASSWORD` environment variable.
+2. `econ_password=<value>` in a `ddnet_control.cfg` file placed next to `ddnet_control.exe`.
+3. `ec_password "<value>"` from `%APPDATA%\DDNet\autoexec_server.cfg` (DDNet's USERDIR autoexec — overrides anything `exec`'d from it).
+4. `ec_password "<value>"` from the running `DDNet-Server.exe`'s `data/myServerConfig.cfg`.
+5. `ec_password "<value>"` from the running `DDNet-Server.exe`'s `data/autoexec_server.cfg`.
+6. Hardcoded fallback `test123` (a `WARNING` is logged so you notice).
+
+Within a single cfg file, the **last** `ec_password` line wins, matching DDNet's "later command overrides" semantics. The chosen source is logged to `ddnet_control.log` (the password value itself is never logged).
+
+If your server uses a non-default `ec_password`, you don't need to recompile — set `DDNETCONTROL_ECON_PASSWORD` or drop a `ddnet_control.cfg` next to the EXE:
+
+```ini
+# ddnet_control.cfg (next to ddnet_control.exe)
+econ_password=your-password-here
+```
+
+Host/port are still `127.0.0.1:8303` in the binary (matches DDNet's default `ec_port`/`ec_bindaddr`).
+
 ## Development notes
 
-- RCON defaults in code: host `127.0.0.1:8303`, password `test123` (adjust as needed).
-- Logs: `ddnet_control.log` (and `build.log` for builds).
+- Logs: `ddnet_control.log` (and `build.log` for builds). Default location is `%APPDATA%\DDNet\maps\ddnet_control.log` (the EXE's working directory when launched via `.map` double-click).
 - See `scratchpad.md` for current test plan and status.
 
 ## License
