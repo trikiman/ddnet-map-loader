@@ -10,6 +10,7 @@ import time
 import base64
 import socket
 import threading
+import ssl
 import pystray
 from PIL import Image
 import webbrowser
@@ -1087,11 +1088,30 @@ def run_server():
     # Bind to all interfaces
     server_address = ('0.0.0.0', 8299)
     httpd = FastHTTPServer(server_address, MapServerHandler)
-    
+
+    # Opportunistic HTTPS: if cert.pem and key.pem sit next to server.py,
+    # wrap the socket with TLS. Required so the editor PC's browser can use
+    # the File System Access API (which needs a secure context). Generated
+    # by `make_cert.bat` at the repo root. Falls back to plain HTTP if absent.
+    _server_dir = os.path.dirname(os.path.abspath(__file__))
+    _cert_path = os.path.join(_server_dir, 'cert.pem')
+    _key_path = os.path.join(_server_dir, 'key.pem')
+    using_https = os.path.exists(_cert_path) and os.path.exists(_key_path)
+    if using_https:
+        try:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(certfile=_cert_path, keyfile=_key_path)
+            httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+            print(f'TLS enabled (cert: {_cert_path})')
+        except Exception as _tls_err:
+            print(f'[WARN] TLS init failed ({_tls_err}); continuing on plain HTTP')
+            using_https = False
+
+    scheme = 'https' if using_https else 'http'
     local_ip = get_local_ip()
     print(f'\nServer running on:')
-    print(f' - Local:   http://localhost:{server_address[1]}')
-    print(f' - Network: http://{local_ip}:{server_address[1]}')
+    print(f' - Local:   {scheme}://localhost:{server_address[1]}')
+    print(f' - Network: {scheme}://{local_ip}:{server_address[1]}')
     print(f'\nServing files from: {os.getcwd()}')
     print('\nTo access from other devices on your network, use the Network URL')
     

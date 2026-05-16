@@ -192,47 +192,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Function to start auto-update watcher after upload
-    async function startAutoUpdateWatcher(filePath, originalName) {
-        const baseUrl = window.location.origin;
-        const autoUpdateStatus = document.getElementById('autoUpdateStatus');
-        
-        if (!autoUpdateStatus) return;
-        
-        autoUpdateStatus.style.display = 'block';
-        autoUpdateStatus.style.background = '#3d2e0a';
-        autoUpdateStatus.style.border = '1px solid #ff9800';
-        autoUpdateStatus.innerHTML = '⏳ Starting auto-update watcher...';
-        
+    // ===== In-browser auto-reupload watcher (File System Access API) =====
+    // No installer, no PowerShell. The browser holds a handle to a local
+    // file the user picks once; we poll its lastModified and re-POST to
+    // /upload whenever the DDNet editor saves it.
+    const watcherState = {
+        handle: null,
+        lastModified: 0,
+        pollTimer: null,
+        uploading: false,
+        uploadCount: 0,
+    };
+
+    function watcherSupported() {
+        return typeof window.showOpenFilePicker === 'function' && window.isSecureContext;
+    }
+
+    function setWatcherStatus(html, borderColor) {
+        const el = document.getElementById('watcherStatus');
+        if (!el) return;
+        el.style.display = 'block';
+        el.innerHTML = html;
+        el.style.borderColor = borderColor || '#2a4a2a';
+    }
+
+    function revealWatcherCard() {
+        const card = document.getElementById('watcherCard');
+        if (!card) return;
+        card.style.display = 'block';
+        if (!watcherSupported()) {
+            const u = document.getElementById('watcherUnsupported');
+            if (u) u.style.display = 'block';
+            const btn = document.getElementById('watcherStartBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
+        }
+    }
+
+    async function startBrowserWatcher() {
+        if (!watcherSupported()) return;
         try {
-            const response = await fetch(`${baseUrl}/start-auto-update`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    filePath: filePath,
-                    serverUrl: baseUrl
-                })
+            const [handle] = await window.showOpenFilePicker({
+                types: [{ description: 'DDNet map', accept: { 'application/octet-stream': ['.map'] } }],
+                multiple: false,
             });
-            
-            const result = await response.json();
-            
-            if (response.ok) {
-                // Use original filename for cleaner display
-                const displayName = originalName || filePath.split('\\').pop().split('/').pop();
-                autoUpdateStatus.style.background = '#1b4d1b';
-                autoUpdateStatus.style.border = '1px solid #4CAF50';
-                autoUpdateStatus.style.color = '#90EE90';  // Light green text
-                autoUpdateStatus.innerHTML = `✅ <strong style="color:#4CAF50">Watcher running!</strong> Watching: <strong>${displayName}</strong><br>
-                    <small style="color:#b0b0b0">PowerShell window opened. Keep it running while editing.</small>`;
-            } else {
-                autoUpdateStatus.style.background = '#4d1b1b';
-                autoUpdateStatus.style.border = '1px solid #f44336';
-                autoUpdateStatus.innerHTML = `❌ Failed to start watcher: ${result.error}`;
+            watcherState.handle = handle;
+            const file = await handle.getFile();
+            watcherState.lastModified = file.lastModified;
+
+            // Push the picked file once so the server has the latest from the start.
+            await watcherUploadOnce(file);
+
+            const btn = document.getElementById('watcherStartBtn');
+            if (btn) {
+                btn.textContent = 'Stop';
+                btn.style.background = '#666';
+                btn.onclick = stopBrowserWatcher;
+            }
+
+            if (watcherState.pollTimer) clearInterval(watcherState.pollTimer);
+            watcherState.pollTimer = setInterval(watcherTick, 1000);
+            setWatcherStatus(`👀 Watching <strong>${handle.name}</strong>. Save in the DDNet editor — it will auto-reupload.`, '#4CAF50');
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                setWatcherStatus(`❌ Could not start: ${e.message}`, '#f44336');
+            }
+        }
+    }
+
+    function stopBrowserWatcher() {
+        if (watcherState.pollTimer) clearInterval(watcherState.pollTimer);
+        watcherState.pollTimer = null;
+        watcherState.handle = null;
+        watcherState.lastModified = 0;
+        const btn = document.getElementById('watcherStartBtn');
+        if (btn) {
+            btn.textContent = 'Start';
+            btn.style.background = '#4CAF50';
+            btn.onclick = startBrowserWatcher;
+        }
+        setWatcherStatus('⏹️ Stopped.', '#666');
+    }
+
+    async function watcherTick() {
+        if (!watcherState.handle || watcherState.uploading) return;
+        try {
+            const file = await watcherState.handle.getFile();
+            if (file.lastModified > watcherState.lastModified) {
+                watcherState.lastModified = file.lastModified;
+                await watcherUploadOnce(file);
             }
         } catch (e) {
-            autoUpdateStatus.style.background = '#4d1b1b';
-            autoUpdateStatus.style.border = '1px solid #f44336';
-            autoUpdateStatus.innerHTML = `❌ Error: ${e.message}`;
+            setWatcherStatus(`⚠️ Lost access to the file: ${e.message}. Click Start to re-pick.`, '#ff9800');
+            stopBrowserWatcher();
+        }
+    }
+
+    async function watcherUploadOnce(file) {
+        watcherState.uploading = true;
+        try {
+            const formData = new FormData();
+            formData.append('file', file, file.name);
+            const baseUrl = window.location.origin;
+            const resp = await fetch(`${baseUrl}/upload`, { method: 'POST', body: formData });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok) {
+                watcherState.uploadCount++;
+                const t = new Date().toLocaleTimeString();
+                setWatcherStatus(`✅ Uploaded <strong>${file.name}</strong> at ${t} (#${watcherState.uploadCount}). Watching for next save…`, '#4CAF50');
+                if (data.filename) {
+                    const clickPath = `C:\\Users\\rust-\\AppData\\Roaming\\DDNet\\maps\\${data.filename}`;
+                    fetch(`${baseUrl}/simulate-click`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filePath: clickPath }),
+                    }).catch(() => {});
+                }
+            } else {
+                setWatcherStatus(`❌ Upload failed: ${data.error || resp.status}`, '#f44336');
+            }
+        } catch (e) {
+            setWatcherStatus(`❌ Upload error: ${e.message}`, '#f44336');
+        } finally {
+            watcherState.uploading = false;
         }
     }
 
@@ -248,9 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const baseUrl = window.location.origin;
         
         // Check if auto-update is enabled
-        const autoUpdateCheckbox = document.getElementById('autoUpdateCheckbox');
-        const enableAutoUpdate = autoUpdateCheckbox && autoUpdateCheckbox.checked;
-
         // Upload file
         fetch(`${baseUrl}/upload`, {
             method: 'POST',
@@ -303,10 +385,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Simulate-click error:', error);
             });
             
-            // Start auto-update watcher if checkbox is enabled
-            if (enableAutoUpdate) {
-                startAutoUpdateWatcher(clickPath, data.originalName || file.name);
-            }
+            // After first successful upload, reveal the in-browser watcher card.
+            // Editor user clicks Start → picks the same local file → every save
+            // re-uploads automatically. No installer, no PowerShell.
+            revealWatcherCard();
         })
         .catch(error => {
             progressLabel.textContent = 'Upload failed';
@@ -511,17 +593,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Refresh maps list every 30 seconds
     setInterval(() => loadMaps(currentFolder), 30000);
 
-    // ===== Auto-update checkbox =====
-    const autoUpdateCheckbox = document.getElementById('autoUpdateCheckbox');
-    const autoUpdateWarning = document.getElementById('autoUpdateWarning');
-
-    // Show/hide warning when checkbox changes
-    if (autoUpdateCheckbox) {
-        autoUpdateCheckbox.addEventListener('change', () => {
-            if (autoUpdateWarning) {
-                autoUpdateWarning.style.display = autoUpdateCheckbox.checked ? 'block' : 'none';
-            }
-        });
+    // ===== Auto-reupload: wire the Start button on the watcher card =====
+    const watcherStartBtn = document.getElementById('watcherStartBtn');
+    if (watcherStartBtn) {
+        watcherStartBtn.onclick = startBrowserWatcher;
     }
 
     // ===== Search functionality =====

@@ -33,17 +33,21 @@
                     </div>
                 </div>
                 
-                <!-- Auto-update checkbox -->
-                <div style="margin-top:16px;padding:12px;background:#1a2e1a;border:1px solid #4CAF50;border-radius:8px">
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;color:#ddd">
-                        <input type="checkbox" id="autoUpdateCheckbox" style="width:18px;height:18px;cursor:pointer">
-                        <span style="font-weight:500;color:#4CAF50">Enable auto-update on save</span>
-                    </label>
-                    <div id="autoUpdateWarning" style="display:none;margin-top:10px;padding:10px;background:#3d2e0a;border:1px solid #ff9800;border-radius:6px;font-size:13px;color:#ffcc80">
-                        <strong>⚠️ Note:</strong> A PowerShell window will open to watch your file. Keep it running while editing - it will auto-upload every time you save the map in DDNet editor.
+                <!-- Auto-reupload on save (in-browser, no install) -->
+                <div id="watcherCard" style="margin-top:16px;padding:12px;background:#1a2e1a;border:1px solid #4CAF50;border-radius:8px;display:none">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                        <div>
+                            <div style="font-weight:500;color:#4CAF50">🔁 Auto-reupload on save</div>
+                            <div style="font-size:13px;color:#b0b0b0;margin-top:4px">Pick the local file once. Every time you save it in the DDNet editor, it re-uploads here automatically. Keep this tab open.</div>
+                        </div>
+                        <button id="watcherStartBtn" type="button" style="background:#4CAF50;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-weight:500;cursor:pointer">Start</button>
+                    </div>
+                    <div id="watcherStatus" style="display:none;margin-top:10px;padding:10px;border-radius:6px;background:#0d1f0d;border:1px solid #2a4a2a;font-size:13px;color:#cfe5cf"></div>
+                    <div id="watcherUnsupported" style="display:none;margin-top:10px;padding:10px;background:#3d2e0a;border:1px solid #ff9800;border-radius:6px;font-size:13px;color:#ffcc80">
+                        <strong>⚠️ Browser-watch not available on this connection.</strong>
+                        Use Chrome / Edge / Brave on Windows, and access this page over <code>https://</code> or <code>http://localhost</code>. Run <code>make_cert.bat</code> on the server PC to enable HTTPS.
                     </div>
                 </div>
-                <div id="autoUpdateStatus" style="display:none;padding:12px;border-radius:6px;margin-top:12px"></div>
             </section>
 
             <section class="sync-section">

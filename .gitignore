@@ -45,3 +45,8 @@ web/__pycache__/
 
 # Tools outputs
 screencapture-*.png
+
+# TLS material — generated locally by make_cert.bat, NEVER commit
+web/cert.pem
+web/key.pem
+web/cert.pfx
